@@ -22,6 +22,8 @@
 
 ## 运行与边界
 
+0.2.5 修复独立浮窗的拖动结束缺口：DOM 捕获丢失、取消、全窗口抬起、失焦和 Esc 均清理拖动；主进程同时检查鼠标释放与 Windows 捕获/取消消息，不再只依赖宠物节点上的 pointer-up。单次拖动上限 30 秒。窗口层使用公开的 [Electron Windows 消息接口](https://www.electronjs.org/docs/latest/api/base-window#winhookwindowmessagemessage-callback-windows) 和 [鼠标事件接口](https://www.electronjs.org/docs/latest/api/web-contents#event-before-mouse-event)，不安装全局鼠标钩子。
+
 浮窗使用用户配置的 Electron 可执行文件或 `~/.dsh/electron` 共享运行时，不引用其他宠物插件的应用代码。Windows Electron 无法可靠读取 piped stdin，父进程向浮窗发送消息改为随机令牌认证的 loopback 连接；子进程事件保留 stdout JSON，断线与父进程退出时关闭窗口。
 
 Codex 原版顶部语音入口包含实时语音会话能力。DSH 本 fork 保持 DSH 已配置的语音转文字输入；本轮对齐不把它描述成 Codex 实时语音。图片的原始权利声明仍见 NOTICE。

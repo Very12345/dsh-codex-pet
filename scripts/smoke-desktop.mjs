@@ -10,6 +10,15 @@ try{
  const state=await host.desktop.inspect();assert.equal(state.visible,true);assert.equal(state.topmost,true);assert.equal(state.noticesVisible,true);
  assert.equal(state.above,true);assert.ok(state.noticeBounds.y<state.petBounds.y,'bottom pet displays notifications above');
  const petScreenY=state.bounds.y+state.petBounds.y;
+ for(const action of ['drag-loss','drag-cancel','drag-native-up','drag-escape','blur']){
+  host.desktop['send']({type:'fixture-ui',action:'drag-start'});await new Promise(resolve=>setTimeout(resolve,80));
+  const active=await host.desktop.inspect();assert.equal(active.nativeDragging,true,'native drag should start before '+action);assert.equal(active.rendererDragging,true);
+  host.desktop['send']({type:'fixture-ui',action});await new Promise(resolve=>setTimeout(resolve,action==='blur'?300:100));
+  const stopped=await host.desktop.inspect();assert.equal(stopped.nativeDragging,false,action+' clears native drag');assert.equal(stopped.rendererDragging,false,action+' clears renderer capture');
+  await new Promise(resolve=>setTimeout(resolve,120));assert.deepEqual((await host.desktop.inspect()).bounds,stopped.bounds,action+' leaves position stable');
+  host.desktop['send']({type:'fixture-ui',action:'drag-reset'});await new Promise(resolve=>setTimeout(resolve,80));
+ }
+ console.log('capture loss, pointer cancel, native mouse-up without DOM release, Escape and focus loss end drag in both processes PASS');
  host.desktop['send']({type:'fixture-ui',action:'hover',hover:true});await new Promise(resolve=>setTimeout(resolve,120));
  const hovered=await host.desktop.inspect();assert.equal(hovered.toolbarButtonCount,3);
  assert.ok(state.cell.row<9,'ordinary cursor positions must not replace the idle/status animation with a gaze frame');

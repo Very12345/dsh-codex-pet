@@ -7580,6 +7580,21 @@
     const shell = (0, import_react2.useRef)(null), pet = (0, import_react2.useRef)(null), input = (0, import_react2.useRef)(null), started = (0, import_react2.useRef)(performance.now()), lastPose = (0, import_react2.useRef)(""), dragging = (0, import_react2.useRef)(false), pending = (0, import_react2.useRef)(""), pixels = (0, import_react2.useRef)(null), replies = (0, import_react2.useRef)(/* @__PURE__ */ new Map());
     const [controls, setControls] = (0, import_react2.useState)(false), [above, setAbove] = (0, import_react2.useState)(false);
     const hoverTimer = (0, import_react2.useRef)(), replyDrafts = (0, import_react2.useRef)(/* @__PURE__ */ new Map());
+    const captureId = (0, import_react2.useRef)(null);
+    const endDrag = () => {
+      if (!dragging.current) return;
+      dragging.current = false;
+      bridge.drag(false);
+      setTransient(null);
+      const id = captureId.current;
+      captureId.current = null;
+      try {
+        if (id !== null && pet.current?.hasPointerCapture(id)) pet.current.releasePointerCapture(id);
+      } catch {
+      }
+    };
+    const endDragRef = (0, import_react2.useRef)(endDrag);
+    endDragRef.current = endDrag;
     const size = state?.config?.size || 120, items = state?.notifications?.items || [], requestedPose = transient ?? (hover ? "jumping" : state?.notifications?.activity?.pose || "idle"), pose = requestedPose in ANIMATIONS ? requestedPose : "idle";
     const chinese = !String(state?.language || "zh").startsWith("en"), t = (zh, en2) => chinese ? zh : en2;
     const action = (command) => {
@@ -7610,7 +7625,10 @@
           clearTimeout(hoverTimer.current);
           if (value.hover) setControls(true);
           else hoverTimer.current = setTimeout(() => setControls(false), 180);
-        } else if (value.type === "window-blur") dismissRef.current();
+        } else if (value.type === "window-blur") {
+          endDragRef.current();
+          dismissRef.current();
+        } else if (value.type === "drag-ended") endDragRef.current();
         else if (value.type === "drag-motion") {
           if (value.dx >= 4) setTransient("running-right");
           else if (value.dx <= -4) setTransient("running-left");
@@ -7635,7 +7653,9 @@
             } else setError(value.error || "");
           }
         } else if (value.type === "fixture-ui") {
-          if (value.action === "new") {
+          if (value.action === "drag-loss") pet.current?.dispatchEvent(new PointerEvent("lostpointercapture", { bubbles: true }));
+          else if (value.action === "drag-cancel") pet.current?.dispatchEvent(new PointerEvent("pointercancel", { bubbles: true }));
+          else if (value.action === "new") {
             setCompose(true);
             setCollapsed(false);
             bridge.focus();
@@ -7736,6 +7756,22 @@
       }
     }, [compose]);
     (0, import_react2.useEffect)(() => {
+      const end = () => endDragRef.current(), escape = (event) => {
+        if (event.key === "Escape") end();
+      };
+      window.addEventListener("pointerup", end, true);
+      window.addEventListener("pointercancel", end, true);
+      window.addEventListener("blur", end);
+      window.addEventListener("keydown", escape, true);
+      return () => {
+        end();
+        window.removeEventListener("pointerup", end, true);
+        window.removeEventListener("pointercancel", end, true);
+        window.removeEventListener("blur", end);
+        window.removeEventListener("keydown", escape, true);
+      };
+    }, []);
+    (0, import_react2.useEffect)(() => {
       if (!compose) return;
       const outside = (event) => {
         if (!(event.target instanceof Element) || !event.target.closest(".composer,.attachments,.status,.composer-error")) dismissRef.current();
@@ -7744,7 +7780,7 @@
       return () => document.removeEventListener("pointerdown", outside, true);
     }, [compose]);
     (0, import_react2.useEffect)(() => {
-      window.__petInspect = () => ({ pose, cell, above, controls, toolbarButtonCount: document.querySelectorAll(".toolbar button").length, collapsed, composerVisible: compose && !collapsed, composerText: draft, noticesVisible: !collapsed && items.length > 0, petBounds: pet.current?.getBoundingClientRect().toJSON(), toolbarBounds: document.querySelector(".toolbar")?.getBoundingClientRect().toJSON(), noticeBounds: document.querySelector(".notice")?.getBoundingClientRect().toJSON(), noticePreview: document.querySelector(".notice-copy")?.textContent, replyVisible: !!document.querySelector(".follow-up") });
+      window.__petInspect = () => ({ pose, cell, above, controls, rendererDragging: dragging.current, toolbarButtonCount: document.querySelectorAll(".toolbar button").length, collapsed, composerVisible: compose && !collapsed, composerText: draft, noticesVisible: !collapsed && items.length > 0, petBounds: pet.current?.getBoundingClientRect().toJSON(), toolbarBounds: document.querySelector(".toolbar")?.getBoundingClientRect().toJSON(), noticeBounds: document.querySelector(".notice")?.getBoundingClientRect().toJSON(), noticePreview: document.querySelector(".notice-copy")?.textContent, replyVisible: !!document.querySelector(".follow-up") });
     }, [pose, cell, above, controls, collapsed, compose, draft, items.length]);
     const openComposer = () => {
       setCompose(true);
@@ -7770,19 +7806,22 @@
     return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "shell " + (above ? "above " : "") + (state.theme === "dark" ? "dark" : ""), ref: shell, children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "mascot-group", "data-hover": true, children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { ref: pet, "data-hit": true, className: "pet", "aria-label": t("\u60AC\u6D6E\u5BA0\u7269", "Floating pet"), style: { width: size, height: size * 208 / 192, backgroundImage: "url(data:image/png;base64," + state.image + ")", backgroundSize: `${size * 8}px ${size * 208 / 192 * (state.version === 2 ? 11 : 9)}px`, backgroundPosition: `${-cell.column * size}px ${-cell.row * size * 208 / 192}px` }, onPointerEnter: () => setHover(true), onPointerLeave: () => setHover(false), onPointerDown: (event) => {
-          if (event.button !== 0) return;
+          if (event.button !== 0 || dragging.current) return;
           dragging.current = true;
-          event.currentTarget.setPointerCapture(event.pointerId);
-          bridge.drag(true);
-        }, onPointerUp: (event) => {
-          dragging.current = false;
-          setTransient(null);
-          event.currentTarget.releasePointerCapture(event.pointerId);
-          bridge.drag(false);
-        }, onDoubleClick: () => {
+          captureId.current = event.pointerId;
+          try {
+            event.currentTarget.setPointerCapture(event.pointerId);
+            bridge.drag(true);
+          } catch {
+            endDrag();
+          }
+        }, onPointerMove: (event) => {
+          if (dragging.current && !(event.buttons & 1)) endDrag();
+        }, onPointerUp: endDrag, onPointerCancel: endDrag, onLostPointerCapture: endDrag, onDoubleClick: () => {
           setTransient("jumping");
           setTimeout(() => setTransient(null), 2100);
         }, onContextMenu: (event) => {
+          endDrag();
           event.preventDefault();
           setMenu(!menu);
         } }),

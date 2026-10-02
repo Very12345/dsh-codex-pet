@@ -2,7 +2,7 @@
 
 [简体中文](README.zh-CN.md)
 
-An independent fork of [MichengAI/dsh-codex-pet](https://github.com/MichengAI/dsh-codex-pet), based on upstream 0.1.12. Fork version **0.2.4** adds a native Windows floating companion outside the DSH window.
+An independent fork of [MichengAI/dsh-codex-pet](https://github.com/MichengAI/dsh-codex-pet), based on upstream 0.1.12. Fork version **0.2.5** adds a native Windows floating companion outside the DSH window.
 
 ## Features
 
@@ -11,7 +11,7 @@ An independent fork of [MichengAI/dsh-codex-pet](https://github.com/MichengAI/ds
 - Sending a draft or pressing Ctrl+Enter creates and prompts a native DSH session. Voice uses the host-configured speech recognizer; enable and prepare DSH voice input first. Transcripts require an explicit send.
 
 - Transparent, always-on-top pet, visible while DSH is minimized or another app is active. Startup and state updates do not steal focus.
-- Drag to move, double-click to jump, right-click for settings, task notifications, position reset, hiding or returning to page display. Transparent pixels pass mouse input through.
+- Hold the left button to drag; release or Escape ends dragging. Capture loss and focus loss also stop it, with a 30-second upper bound. Double-click to jump and right-click for settings or returning to page display. Transparent pixels pass mouse input through.
 - Nine built-in pets, custom sprites, animations and existing multi-task notifications. Open a task, stop a turn, dismiss a reminder or respond to supported approvals, questions and plans.
 - Per-display position persistence, DPI scaling and a primary-display fallback when the saved monitor is missing.
 - Display is claimed only after the native frame is painted. A failed helper restores the page companion. Host exit, plugin disposal or a disconnected owner closes the native windows.

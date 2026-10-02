@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.5] - 2026-10-02
+
+- End native dragging on capture loss, pointer cancellation, mouse release, Escape, blur or hide. Clear the drag before releasing DOM capture and ignore late start requests after button release.
+- Add Electron mouse and Windows window-message release checks, plus a bounded drag duration, so missing a renderer pointer-up cannot leave the companion attached to the cursor.
+- Exercise five cancellation paths in the actual isolated Electron helper and verify both processes stop dragging and window bounds remain stable.
+
 ## [0.2.4] - 2026-10-02
 
 - Collapse controls until hover; idle pets have two actions and tasks add the third. Flip notification placement above/below by mascot position while preserving its screen anchor.
