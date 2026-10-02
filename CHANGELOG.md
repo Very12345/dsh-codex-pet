@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.2.7] - 2026-10-02
+
+- Use the locally identified `square-and-pencil-light-20` drawing for the floating new-conversation button, matching its rounded pen and frame instead of the previous angular outline.
+
 ## [0.2.6] - 2026-10-02
 
 - Constrain the mascot itself, allowing the transparent canvas to cross display edges; independently inset readable panels. Match the reference's vertical area and 40px bottom reserve instead of constraining a 360px window with 96px reserved.
