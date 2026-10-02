@@ -29,6 +29,7 @@ import {
   type Pose,
 } from "./model.ts";
 import { styles } from "./styles.ts";
+import {motionFrameAt} from './motion.ts';
 export async function request(path: string, data?: unknown): Promise<Library> {
   const response = await fetch(`${BASE}/api/${path}`, {
     method: data === undefined ? "GET" : "POST",
@@ -98,24 +99,17 @@ export function Sprite({
   useEffect(() => {
     const node = element.current;
     if (!node) return;
-    const animation = ANIMATIONS[pose];
-    let frame = 0,
-      last: number | null = null,
-      id = 0;
+    const started=performance.now();let id=0;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const paint = () => {
-      const row = pet.version === 2 && look ? look.row : animation.row;
-      const col = pet.version === 2 && look ? look.col : frame;
+    const paint = (elapsed=0) => {
+      const frame=motionFrameAt(pose,elapsed,reduced.matches);
+      const row = pet.version === 2 && look ? look.row : frame.row;
+      const col = pet.version === 2 && look ? look.col : frame.column;
       node.style.backgroundPosition = `${-col * size}px ${(-row * size * 208) / 192}px`;
     };
     paint();
     const tick = (time: number) => {
-      if (last === null || document.hidden) last = time;
-      if (!document.hidden && time - last >= animation.durations[frame]!) {
-        last = time;
-        frame = (frame + 1) % animation.durations.length;
-        paint();
-      }
+      if(!document.hidden)paint(time-started);
       id = requestAnimationFrame(tick);
     };
     if (animate && !look && !reduced.matches) id = requestAnimationFrame(tick);

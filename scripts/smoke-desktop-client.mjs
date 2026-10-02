@@ -31,7 +31,7 @@ try{
  });
  const deadline=Date.now()+20000;
  while(!host.desktop.running || await page.locator('.dcp-pet-button').count()){if(Date.now()>deadline)throw new Error('Desktop ownership timed out');await new Promise(r=>setTimeout(r,100));}
- const state=await host.desktop.inspect();assert.equal(state.visible,true);assert.equal(state.noticesVisible,true);assert.notEqual(state.handle,state.foreground);
+ const state=await host.desktop.inspect();assert.equal(state.visible,true);assert.equal(state.noticesVisible,true);assert.equal(state.focused,false);
  // A hidden/minimized document must not govern the native window's lifetime.
  await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));});
  await new Promise(r=>setTimeout(r,2700));assert.equal((await host.desktop.inspect()).visible,true);

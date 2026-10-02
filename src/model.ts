@@ -183,7 +183,7 @@ export function lookCell(
   dx: number,
   dy: number,
 ): { row: number; col: number } | null {
-  if (Math.hypot(dx, dy) < 28) return null;
+  if (Math.hypot(dx, dy) <= 1) return null;
   const index =
     Math.round(
       ((Math.atan2(dx, -dy) + Math.PI * 2) % (Math.PI * 2)) / (Math.PI / 8),

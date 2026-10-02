@@ -7,3 +7,6 @@ assets/codex/source.json
 .codegraph/
 *.log
 docs/
+!docs/
+docs/*
+!docs/CODEX-ALIGNMENT.md

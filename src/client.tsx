@@ -99,7 +99,7 @@ function Overlay({
       if(!sessions.create)throw new Error('创建会话尚不可用，请重试');
       const id=await sessions.create({});await sessions.open?.(id);return;
     }
-    if(value.type==='send-message'){await sendCompanionChat(sessions as CreationSessions,value.text);return;}
+    if(value.type==='send-message'){await sendCompanionChat(sessions as CreationSessions,value.text,value.files);return;}
     if(value.type==='voice-toggle' || value.type==='voice-cancel')throw new Error('语音需要桌面显示连接');
     if (value.type === "sort") {
       engine.sort(value.latest);

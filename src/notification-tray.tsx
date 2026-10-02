@@ -3,9 +3,9 @@ import { ChevronDownIcon, Cross2Icon, ResetIcon, MixerHorizontalIcon, QuestionMa
 /** Web 与原生浮窗共用的会话通知列表；所有提交都携带原请求身份。 */
 import React, { useState } from 'react';
 import type { Answers, Notice, NoticeCommand, NotificationState } from './notifications.ts';
-export type TrayCommand = NoticeCommand | { type: 'sort'; latest: boolean } | {type:'new-session'} | {type:'send-message';text:string} | {type:'voice-toggle'} | {type:'voice-cancel'};
+export type TrayCommand = NoticeCommand | { type: 'sort'; latest: boolean } | {type:'new-session'} | {type:'send-message';text:string;files?:string[]} | {type:'voice-toggle'} | {type:'voice-cancel'};
 export interface TrayProps { language?: string; state: NotificationState; command(value: TrayCommand): Promise<void> }
-function RequestForm({ item, command, language }: { language?: string; item: Notice; command: TrayProps['command'] }) {
+export function RequestForm({ item, command, language }: { language?: string; item: Notice; command: TrayProps['command'] }) {
   const t = translator(language ?? 'zh');
   const [answers, setAnswers] = useState<Answers>({ answers: (item.request?.questions ?? []).map(q => ({ id: q.id, selected: [] })) });
   const [busy, setBusy] = useState(false), [error, setError] = useState('');

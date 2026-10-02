@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2] - 2026-10-02
+
+- Replace the WinForms companion with an independently implemented transparent Electron window using the existing shared runtime; compact single-line chat, pixelated sprites, rounded notifications and SVG actions.
+- Align animation timing and gaze with locally inspected Codex parameters: slower idle, three action cycles, directional gaze and hover/drag behavior. All nine existing sprite sheets already match the reference files.
+- Authenticate the local helper transport, preserve original request identities and page fallback, and verify native window plus browser/host/helper integration.
+- Document reference measurements and the distinction between DSH voice dictation and Codex real-time voice.
+
 ## [0.2.1] - 2026-10-02
 
 - Center pet, toolbar and rounded transparent-shadow notifications vertically.

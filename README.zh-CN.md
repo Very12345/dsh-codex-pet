@@ -1,8 +1,10 @@
 # DSH 悬浮宠物
 
-这是 [MichengAI/dsh-codex-pet](https://github.com/MichengAI/dsh-codex-pet) 的独立 fork，基于上游 0.1.12。新增 Windows 原生透明浮窗，让宠物能显示在 DSH 窗口之外。当前 fork 版本为 **0.2.1**。
+这是 [MichengAI/dsh-codex-pet](https://github.com/MichengAI/dsh-codex-pet) 的独立 fork，基于上游 0.1.12。新增 Windows 原生透明浮窗，让宠物能显示在 DSH 窗口之外。当前 fork 版本为 **0.2.2**。
 
 ## 功能
+
+本轮根据本机 Codex 26.930 安装包中的实际动画参数与界面尺寸对齐；记录见 [本地对齐说明](docs/CODEX-ALIGNMENT.md)。图集一致，修正的是播放节奏、动作优先级和绘制方式。
 
 - 宠物、工具条和通知居中纵向排列，通知为透明背景上的圆角胶囊。工具条依次为新对话、语音输入、折叠/展开对话；折叠后显示通知铃铛和数量。
 - 新对话打开浮窗输入框，点击发送或 Ctrl+Enter 后才创建 DSH 对话。语音输入按 DSH 已配置的识别服务转成文字填入输入框，由你确认发送；需先启用 DSH 语音输入插件并完成识别模型准备。
@@ -16,7 +18,7 @@
 
 ## 运行环境
 
-桌面浮窗当前支持 **Windows 10/11**，使用系统自带 Windows PowerShell 和 WinForms。不修改官方 DSH 安装文件，不依赖 MichengAI 的桌面分支，也不下载第二套 Electron。
+桌面浮窗当前支持 **Windows 10/11**，使用独立透明 Electron 浮窗与浏览器绘制。不修改官方 DSH 安装文件，不依赖 MichengAI 的桌面分支。优先复用 `~/.dsh/electron/electron.exe`，或用 `DSH_FLOATING_PET_ELECTRON` 指定通用 Electron；缺少运行时时恢复页内显示，不自动下载。
 
 保留上游声明的 DSH RC 兼容名单；开发基线和当前验证目标为 **DSH 0.2.0-rc.2**。Linux/macOS 保留页内宠物，本 fork 尚未实现这两个平台的原生浮窗。退出整个 DSH 后宠物关闭；它不是独立运行的任务代理。
 
@@ -38,7 +40,7 @@ dsh plugin --profile desktop add 'https://github.com/Very12345/dsh-codex-pet.git
 
 桌面模式一次由一个 DSH 页面接管。切换窗口或最小化不会释放接管；页面真正关闭、刷新或连接中断时保留最多 10 秒重连时间，再关闭浮窗。重新加载页面可重新创建。关闭或操作失败后，可在设置中关闭再开启桌面悬浮重试。
 
-图集按需在内存中转成 PNG，原始文件和自定义宠物不改写。会话观察引用仅在任务运行或等待交互时保留，停止和卸载时释放，避免占用已停止对话。
+图集按需在内存中转成 PNG，使用像素化采样、慢速待机及三轮状态动作后回到待机，原始文件和自定义宠物不改写。会话观察引用仅在任务运行或等待交互时保留，停止和卸载时释放，避免占用已停止对话。
 
 ## 开发与验证
 
@@ -53,7 +55,7 @@ npm pack --dry-run --ignore-scripts
 
 Windows 浏览器测试默认使用 Edge，可通过 `DSH_PET_BROWSER_CHANNEL` 修改。测试使用独立临时 DSH 数据和模拟会话，不操作日常会话或真实审批。原生烟测只捕获自己的宠物图像，保存在忽略的 `.preview/`。
 
-已验证 52 项自动化测试、页内通知与中英文界面、Windows 透明/置顶/非激活窗口、200% DPI、隐藏页面、审批桥接、页内回退和进程关闭。未承诺 macOS/Linux 浮窗或所有旧宿主的原生浮窗行为。
+已验证 55 项自动化测试、页内通知与中英文界面、Windows 透明/置顶/非激活窗口、200% DPI、隐藏页面、审批桥接、页内回退和进程关闭。未承诺 macOS/Linux 浮窗或所有旧宿主的原生浮窗行为。
 
 GitHub Actions 在本 fork 中关闭，本地检查后直接推送，不消耗 Actions 额度。上游历史和 workflow 文件保留，未启用自动发布。
 

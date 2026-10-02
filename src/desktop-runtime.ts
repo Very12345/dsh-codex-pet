@@ -8,6 +8,8 @@ import type {ServerResponse} from 'node:http';
 import {ANIMATIONS, type Config} from './model.ts';
 import {imageVersion, type PetLibrary} from './library.ts';
 import type {CompanionSnapshot} from './companion-api.ts';
+import {electronPath} from './electron-path.ts';
+import {createServer,type Server,type Socket} from 'node:net';
 
 type Lease = {owner:string; token:string; stream?:ServerResponse; reconnect?:ReturnType<typeof setTimeout>};
 type Reply = {resolve:(value?:unknown)=>void; reject:(error:Error)=>void; timer:ReturnType<typeof setTimeout>};
@@ -27,27 +29,53 @@ export class DesktopRuntime {
   private stopTimer?:ReturnType<typeof setTimeout>;
   private heartbeat?:ReturnType<typeof setInterval>;
   private speechJobs=new Set<AbortController>();
-  constructor(private library:PetLibrary, private options:{platform?:string; spawn?:typeof spawn; startupTimeoutMs?:number; reconnectMs?:number;speech?:()=>SpeechHost|undefined}={}) {
+  private socketServer?:Server;
+  private socket?:Socket;
+  constructor(private library:PetLibrary, private options:{platform?:string; spawn?:typeof spawn; startupTimeoutMs?:number; reconnectMs?:number;speech?:()=>SpeechHost|undefined;fixture?:boolean}={}) {
     this.supported=(options.platform ?? process.platform)==='win32';
   }
   get running(){return !!this.child && !this.error;}
   private send(value:unknown){
     const child=this.child;
-    if(!child || child.stdin.destroyed)throw new Error('Desktop pet process is unavailable');
-    child.stdin.write(JSON.stringify(value)+'\n');
+    const output=this.options.spawn?child?.stdin:this.socket;
+    if(!child || !output || output.destroyed)throw new Error('Desktop pet process is unavailable');
+    output.write(JSON.stringify(value)+'\n');
   }
   private event(type:string,value:unknown){
     const stream=this.lease?.stream;
     if(stream && !stream.destroyed)stream.write(`event: ${type}\ndata: ${JSON.stringify(value)}\n\n`);
   }
-  private async start(){
+  private start():Promise<void>{
+    if(this.starting)return this.starting;
+    if(this.options.spawn)return this.spawnHelper();
+    const operation=(async()=>{
+      const token=randomUUID();
+      const server=createServer(socket=>{
+        const reader=createInterface({input:socket}),timeout=setTimeout(()=>socket.destroy(),3000);
+        socket.on('error',()=>{});
+        reader.once('line',line=>{
+          clearTimeout(timeout);let hello;try{hello=JSON.parse(line);}catch{socket.destroy();return;}
+          if(hello.token!==token || this.socket || hello.pid!==this.child?.pid){socket.destroy();return;}
+          this.socket=socket;
+          socket.once('close',()=>{if(this.socket===socket){this.socket=undefined;if(this.child&&!this.closed){this.error='Desktop companion connection closed';this.stop();}}});
+        });
+      });this.socketServer=server;
+      await new Promise<void>((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});
+      const address=server.address();if(!address||typeof address==='string')throw new Error('Desktop bridge unavailable');
+      return await this.spawnHelper({DSH_FLOATING_PET_BRIDGE_PORT:String(address.port),DSH_FLOATING_PET_BRIDGE_TOKEN:token});
+    })().catch(error=>{this.starting=undefined;this.socket?.destroy();this.socket=undefined;this.socketServer?.close();this.socketServer=undefined;throw error;});this.starting=operation;return operation;
+  }
+  private async spawnHelper(extraEnv:Record<string,string>={}){
     if(this.closed)throw new Error('Desktop pet has been unloaded');
     if(this.child)return this.starting;
     this.error='';
-    const executable=join(process.env.SystemRoot ?? 'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe');
-    const script=fileURLToPath(new URL('../native/desktop-pet.ps1',import.meta.url));
+    const executable=this.options.spawn?'electron-fixture':electronPath();
+    const script=fileURLToPath(new URL('../native/electron',import.meta.url));
     const env=Object.fromEntries(Object.entries(process.env).filter(([key])=>!/^DSH_/i.test(key) && !/(?:API.?KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)/i.test(key)));
-    const child=(this.options.spawn ?? spawn)(executable,['-NoProfile','-NonInteractive','-STA','-ExecutionPolicy','Bypass','-File',script,'-ParentProcessId',String(process.pid)],{windowsHide:true,stdio:['pipe','pipe','pipe'],env}) as ChildProcessWithoutNullStreams;
+    delete env.ELECTRON_RUN_AS_NODE;delete env.NODE_OPTIONS;
+    Object.assign(env,extraEnv);
+    if(this.options.fixture)env.DSH_PET_NATIVE_TEST='1';
+    const child=(this.options.spawn ?? spawn)(executable,[script,'--parent-pid='+process.pid],{windowsHide:true,stdio:['pipe','pipe','pipe'],env}) as ChildProcessWithoutNullStreams;
     this.child=child;
     let stderr='';
     child.stderr.on('data',chunk=>{stderr=(stderr+String(chunk)).slice(-4096);});
@@ -80,6 +108,7 @@ export class DesktopRuntime {
         for(const [id] of this.pending)this.finish(id,this.error);
         this.event('stopped',{error:this.error});
         this.clearLease();
+        this.socket?.destroy();this.socket=undefined;this.socketServer?.close();this.socketServer=undefined;
       };
       child.once('error',fail);
       child.once('exit',()=>fail(stderr || 'Desktop pet exited'));
@@ -192,6 +221,7 @@ export class DesktopRuntime {
     this.event('stopped',this.error?{error:this.error}:{});this.clearLease();
     const child=this.child;this.cancelStart?.(new Error('Desktop pet stopped during startup'));this.cancelStart=undefined;
     this.child=undefined;this.starting=undefined;this.imageKey='';this.image=undefined;
+    const socket=this.socket;this.socket=undefined;socket?.end('{"type":"close"}\n');this.socketServer?.close();this.socketServer=undefined;
     for(const [id] of this.pending)this.finish(id,'Desktop pet stopped');
     if(!child)return;
     if(!child.stdin.destroyed)child.stdin.end('{"type":"close"}\n');

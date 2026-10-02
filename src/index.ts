@@ -54,7 +54,7 @@ async function body(req: IncomingMessage, limit=16384): Promise<Record<string, u
     return value as Record<string, unknown>;
 }
 export async function createHost(
-    options: { root?: string; dataRoot?: string; skillRoot?: string;speech?:()=>SpeechHost|undefined } = {},
+    options: { root?: string; dataRoot?: string; skillRoot?: string;speech?:()=>SpeechHost|undefined;fixture?:boolean } = {},
 ) {
     const root = options.root ?? packageRoot;
     const library = new PetLibrary(
@@ -63,7 +63,7 @@ export async function createHost(
         options.skillRoot,
     );
     await library.init();
-    const desktop = new DesktopRuntime(library,{speech:options.speech});
+    const desktop = new DesktopRuntime(library,{speech:options.speech,fixture:options.fixture});
     let updateHandler:
         | ((req: HostRequest, res: HostResponse) => Promise<void>)
         | undefined;

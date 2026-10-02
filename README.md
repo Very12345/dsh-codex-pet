@@ -2,7 +2,7 @@
 
 [简体中文](README.zh-CN.md)
 
-An independent fork of [MichengAI/dsh-codex-pet](https://github.com/MichengAI/dsh-codex-pet), based on upstream 0.1.12. Fork version **0.2.1** adds a native Windows floating companion outside the DSH window.
+An independent fork of [MichengAI/dsh-codex-pet](https://github.com/MichengAI/dsh-codex-pet), based on upstream 0.1.12. Fork version **0.2.2** adds a native Windows floating companion outside the DSH window.
 
 ## Features
 
@@ -17,7 +17,7 @@ An independent fork of [MichengAI/dsh-codex-pet](https://github.com/MichengAI/ds
 
 ## Requirements
 
-Native floating display currently supports **Windows 10/11**, using built-in Windows PowerShell and WinForms. It does not modify the official DSH installation or download another Electron runtime.
+Native floating display currently supports **Windows 10/11**, using a transparent Electron window and browser rendering. It does not modify the official DSH installation and reuses a generic Electron runtime at `~/.dsh/electron` (or `DSH_FLOATING_PET_ELECTRON`). Missing runtimes restore page display without automatic downloads.
 
 The development and validation baseline is **DSH 0.2.0-rc.2**. The upstream RC compatibility list remains declared. Linux/macOS keep page display; this fork has no native backend for them. The companion closes when DSH exits.
 
@@ -54,7 +54,7 @@ npm pack --dry-run --ignore-scripts
 
 Windows browser tests default to Edge (`DSH_PET_BROWSER_CHANNEL` overrides it). Fixtures use temporary data and fake sessions, never real user approvals. Native screenshots capture only the helper's own sprite under ignored `.preview/`.
 
-Validation includes 52 automated tests, page notifications and localization, native transparency/topmost/non-activation, 200% DPI, hidden-page continuity, approval transport, page fallback and process cleanup. Native macOS/Linux and all older desktop host combinations are unverified.
+Validation includes 55 automated tests, page notifications and localization, native transparency/topmost/non-activation, 200% DPI, hidden-page continuity, approval transport, page fallback and process cleanup. Native macOS/Linux and all older desktop host combinations are unverified.
 
 Actions are disabled for this fork. Push after local validation; upstream workflow history is retained without enabling automated publishing.
 
