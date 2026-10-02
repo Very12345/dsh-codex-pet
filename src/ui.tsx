@@ -29,6 +29,7 @@ import {
 } from "./model.ts";
 import { styles } from "./styles.ts";
 import {MotionClock} from './motion.ts';
+import {VoiceSettings} from './voice-settings.tsx';
 export async function request(path: string, data?: unknown): Promise<Library> {
   const response = await fetch(`${BASE}/api/${path}`, {
     method: data === undefined ? "GET" : "POST",
@@ -300,6 +301,7 @@ export function Settings({
           />
         </div>
       </section>
+      {library?.desktopSupported&&<VoiceSettings config={library.config} update={controller.update} language={controller.language}/>}
       {library?.creation && (
         <div className="dcp-note dcp-creation" role="status">
           {library.creation.message}

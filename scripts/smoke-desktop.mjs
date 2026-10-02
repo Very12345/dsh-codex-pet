@@ -9,7 +9,7 @@ try{
  const image=(await sharp(await host.library.asset(pet.id)).png().toBuffer()).toString('base64');
  await host.desktop.publish(token,{image,spriteKey:pet.url,language:'zh-CN',theme:'light',notifications:{activity:{pose:'running'},items:[{id:'fixture',token:'1',title:'阅读科研项目内容',pose:'running',text:'正在思考'}],hidden:0}});
  await new Promise(resolve=>setTimeout(resolve,400));
- const state=await host.desktop.inspect();assert.equal(state.visible,true);assert.equal(state.topmost,true);assert.equal(state.noticesVisible,true);
+ let state=await host.desktop.inspect();const paintedDeadline=Date.now()+4000;while((!state.visible||!state.topmost||!state.noticesVisible)&&Date.now()<paintedDeadline){await new Promise(resolve=>setTimeout(resolve,100));state=await host.desktop.inspect();}assert.equal(state.visible,true,'visible');assert.equal(state.topmost,true,'topmost');assert.equal(state.noticesVisible,true,'notices');
  assert.equal(state.above,true);assert.ok(state.noticeBounds.y<state.petBounds.y,'bottom pet displays notifications above');
  const petScreenY=state.bounds.y+state.petBounds.y;
  for(const action of ['drag-loss','drag-cancel','drag-native-up','drag-escape','blur']){

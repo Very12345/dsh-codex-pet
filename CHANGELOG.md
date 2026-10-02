@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0] - 2026-10-03
+
+- Integrate continuous local calls into the pet voice button: bounded VAD utterances, local SenseVoice recognition, pinned DSH sessions, native queue/steer input and Windows system speech replies.
+- Add capture pause, playback interruption, hangup, progress/repeat/explicit-stop controls, system voice/rate settings and compact call status. Keep manual dictation in the context menu.
+- Reject cloud recognition in the local call path. Preserve session permissions and approvals; hangup never cancels work, late recognition cannot revive a call, and target removal ends capture.
+- Validate native Windows WAV generation without playback, browser decoding, simulated microphone flow, mute/cleanup and native pet integration. Real microphone/speaker acoustics require a manual first-use check.
+
 ## [0.2.8] - 2026-10-03
 
 - Accept prepared speech recognizers in standby or waking, matching DSH's official voice input instead of treating them as uninstalled. The host retains wake-up, queuing and cancellation ownership.

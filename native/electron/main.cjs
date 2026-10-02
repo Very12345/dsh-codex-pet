@@ -39,7 +39,7 @@ function beginDrag(id){
 }
 app.whenReady().then(()=>{
  win=new BrowserWindow({width:VIEWPORT_WIDTH,height:500,x:0,y:0,show:false,frame:false,transparent:true,backgroundColor:'#00000000',alwaysOnTop:true,skipTaskbar:true,resizable:false,hasShadow:false,title:'DSH Floating Pet',webPreferences:{preload:join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
- win.setAlwaysOnTop(true,'floating');win.setIgnoreMouseEvents(true,{forward:true});
+ win.setAlwaysOnTop(true,'normal');win.setIgnoreMouseEvents(true,{forward:true});
  win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',event=>event.preventDefault());
  win.webContents.session.setPermissionRequestHandler((_contents,_permission,callback)=>callback(false));
  ipcMain.on('pet:focus',event=>{if(owner(event)){win.setIgnoreMouseEvents(false);win.focus();}});
@@ -68,7 +68,7 @@ app.whenReady().then(()=>{
   if(value.type==='snapshot'){
    const first=!snapshot,previous=snapshot?.config?.desktopPosition,previousSize=snapshot?.config?.size;snapshot=value;if(value.image)currentImage=value.image;value={...value,image:currentImage};
    if(first||previousSize!==value.config?.size||JSON.stringify(previous)!==JSON.stringify(value.config?.desktopPosition))win.setBounds(placement(win.getBounds().height),false);
-   win.webContents.send('pet:message',value);publishLayout();if(value.config?.visible!==false){if(!win.isVisible())win.showInactive();}else win.hide();
+   win.webContents.send('pet:message',value);publishLayout();if(value.config?.visible!==false){if(!win.isVisible()){win.showInactive();win.setAlwaysOnTop(true,'normal');}}else win.hide();
   }else if(value.type==='inspect'){
    try{const state=await win.webContents.executeJavaScript('window.__petInspect()');const screenshot=await win.webContents.capturePage();emit({type:'inspection',id:value.id,pid:process.pid,nativeDragging:!!drag,visible:win.isVisible(),focused:win.isFocused(),topmost:win.isAlwaysOnTop(),bounds:win.getBounds(),workArea:nativeArea(anchorDisplay()),scale:anchorDisplay().scaleFactor,image:screenshot.toPNG().toString('base64'),...state});}catch(error){emit({type:'native-error',error:error.message});}
   }else if(value.type==='fixture-ui'&&fixture){
@@ -82,7 +82,7 @@ app.whenReady().then(()=>{
    else if(value.action==='drag-escape')win.webContents.sendInputEvent({type:'keyDown',keyCode:'Escape'});
    else win.webContents.send('pet:message',value);
   }
-  else if(['result','composer'].includes(value.type))win.webContents.send('pet:message',value);
+  else if(['result','composer','call-state'].includes(value.type))win.webContents.send('pet:message',value);
  });
  const pointer=setInterval(()=>{
   if(closed||!win)return;const cursor=screen.getCursorScreenPoint(),bounds=win.getBounds();

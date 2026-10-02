@@ -113,7 +113,7 @@ if (!smokeRoot)
     await waitFor(`window.petAnswer?.answers[0].selected[0]==='实施计划'`);
     assert.equal(
       await page.evaluate(
-        `document.querySelector('select,textarea[aria-label="给会话发送消息"]') === null`,
+        `document.querySelector('.dcp-tray select,.dcp-tray textarea[aria-label="给会话发送消息"]') === null`,
       ),
       true,
       "通知面板不提供额外聊天入口",

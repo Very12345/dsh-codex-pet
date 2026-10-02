@@ -22,6 +22,7 @@ import { observePetSettingsIcon } from "./settings-icon.ts";
 import { GlobalOverlay } from "./global-overlay.tsx";
 import {connectDesktop} from './desktop-client.ts';
 import {sendCompanionChat} from './chat.ts';
+import {createVoiceSessions} from './voice-session.ts';
 interface ClientContext {
   effect?(effect:()=>()=>void):void;
   locale: PetLocaleStore;
@@ -100,7 +101,7 @@ function Overlay({
       const id=await sessions.create({});await sessions.open?.(id);return;
     }
     if(value.type==='send-message'){await sendCompanionChat(sessions as CreationSessions,value.text,value.files);return;}
-    if(value.type==='voice-toggle' || value.type==='voice-cancel')throw new Error('语音需要桌面显示连接');
+    if(value.type==='voice-toggle' || value.type==='voice-cancel'||value.type==='call-toggle'||value.type==='call-mute'||value.type==='call-end')throw new Error('语音需要桌面显示连接');
     if (value.type === "sort") {
       engine.sort(value.latest);
       return;
@@ -123,6 +124,7 @@ function Overlay({
       updateConfig: (config) => actions.current.updateConfig(config),
       openSettings: () => actions.current.openSettings(),
       externalDisplay: setExternalDisplay,
+      voice:createVoiceSessions(sessions),
     });
     provider.current = value;
     window.dshPet = value.api;

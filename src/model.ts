@@ -57,6 +57,8 @@ export interface Config {
   position: { x: number; y: number } | null;
   desktop: boolean;
   desktopPosition: { screen: string; x: number; y: number } | null;
+  callVoice?:string;
+  callRate?:number;
 }
 export const DEFAULT_CONFIG: Config = {
   selected: "codex",
@@ -65,6 +67,7 @@ export const DEFAULT_CONFIG: Config = {
   position: null,
   desktop: true,
   desktopPosition: null,
+  callVoice:'',callRate:0,
 };
 export interface Activity {
   pose: Pose;
@@ -97,6 +100,8 @@ export function normalizeConfig(
 ): Config {
   if (!value || typeof value !== "object") throw new Error("配置必须是对象");
   const data = value as Partial<Config>;
+  if(data.callVoice!==undefined&&(typeof data.callVoice!=='string'||data.callVoice.length>160||/[\x00-\x1f]/.test(data.callVoice)))throw new Error('系统声音无效');
+  if(data.callRate!==undefined&&(!Number.isInteger(data.callRate)||data.callRate<-5||data.callRate>5))throw new Error('语速须为 -5–5');
   if (
     data.selected !== undefined &&
     (typeof data.selected !== "string" ||
@@ -135,6 +140,7 @@ export function normalizeConfig(
     position: data.position === undefined ? previous.position : data.position,
     desktop: data.desktop ?? previous.desktop ?? true,
     desktopPosition: data.desktopPosition === undefined ? previous.desktopPosition ?? null : data.desktopPosition,
+    callVoice:data.callVoice??previous.callVoice??'',callRate:data.callRate??previous.callRate??0,
   };
 }
 export interface SessionState {

@@ -12,6 +12,7 @@ import { spawn, execFile } from "node:child_process";
 import { BASE } from "./model.ts";
 import { PetLibrary } from "./library.ts";
 import {DesktopRuntime,type SpeechHost} from './desktop-runtime.ts';
+import {WindowsSpeech,type SpeechOutput} from './local-speech.ts';
 export const name = "very12345-codex-pet";
 export const inject = ["webServer"];
 const packageRoot = fileURLToPath(new URL("../", import.meta.url));
@@ -54,7 +55,7 @@ async function body(req: IncomingMessage, limit=16384): Promise<Record<string, u
     return value as Record<string, unknown>;
 }
 export async function createHost(
-    options: { root?: string; dataRoot?: string; skillRoot?: string;speech?:()=>SpeechHost|undefined;fixture?:boolean } = {},
+    options: { root?: string; dataRoot?: string; skillRoot?: string;speech?:()=>SpeechHost|undefined;output?:SpeechOutput;fixture?:boolean } = {},
 ) {
     const root = options.root ?? packageRoot;
     const library = new PetLibrary(
@@ -63,7 +64,8 @@ export async function createHost(
         options.skillRoot,
     );
     await library.init();
-    const desktop = new DesktopRuntime(library,{speech:options.speech,fixture:options.fixture});
+    const output=options.output??new WindowsSpeech();
+    const desktop = new DesktopRuntime(library,{speech:options.speech,output,fixture:options.fixture});
     let updateHandler:
         | ((req: HostRequest, res: HostResponse) => Promise<void>)
         | undefined;
@@ -114,6 +116,7 @@ export async function createHost(
                     if(req.headers['sec-fetch-site']==='cross-site')throw new Error('请求来源校验失败');
                     desktop.attach(url.searchParams.get('token'),res);return;
                 }
+                if(req.method==='GET'&&path===`${BASE}/api/desktop/tts-voices`){json(res,200,{voices:await desktop.voices()});return;}
                 if(req.method!=='POST'){json(res,405,{error:'方法不支持'});return;}
                 if(!trustedWrite(req)){json(res,403,{error:'请求来源校验失败'});return;}
                 const value=await body(req,path===`${BASE}/api/desktop/snapshot`?32*1024*1024:path===`${BASE}/api/desktop/transcribe`?6*1024*1024:512*1024);
@@ -121,11 +124,13 @@ export async function createHost(
                 if(path===`${BASE}/api/desktop/snapshot`)await desktop.publish(value.token,value.snapshot);
                 else if(path===`${BASE}/api/desktop/ack`)desktop.acknowledge(value.token,value.id,value.error);
                 else if(path===`${BASE}/api/desktop/end`)desktop.release(value.token);
-                else if(path===`${BASE}/api/desktop/voice-ready`)desktop.voiceReady(value.token);
+                else if(path===`${BASE}/api/desktop/voice-ready`)desktop.voiceReady(value.token,value.localOnly===true);
                 else if(path===`${BASE}/api/desktop/composer`)desktop.composer(value.token,value.value);
+                else if(path===`${BASE}/api/desktop/call-state`)desktop.callState(value.token,value.value);
+                else if(path===`${BASE}/api/desktop/tts`){const controller=new AbortController();res.once('close',()=>{if(!res.writableEnded)controller.abort();});json(res,200,await desktop.synthesize(value.token,value,controller.signal));return;}
                 else if(path===`${BASE}/api/desktop/transcribe`){
                     const controller=new AbortController();res.once('close',()=>{if(!res.writableEnded)controller.abort();});
-                    json(res,200,await desktop.transcribe(value.token,value.audioBase64,controller.signal));return;
+                    json(res,200,await desktop.transcribe(value.token,value.audioBase64,controller.signal,value.localOnly===true));return;
                 }
                 else {json(res,404,{error:'未知操作'});return;}
                 json(res,200,{});return;
@@ -246,7 +251,7 @@ export async function createHost(
                 });
         }
     };
-    return { handler, library, desktop, dispose: () => desktop.dispose() };
+    return { handler, library, desktop, dispose: () => {desktop.dispose();output.dispose();} };
 }
 interface HostContext {
     get(name: string): {

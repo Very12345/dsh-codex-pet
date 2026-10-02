@@ -2,13 +2,13 @@
 
 [简体中文](README.zh-CN.md)
 
-An independent fork of [MichengAI/dsh-codex-pet](https://github.com/MichengAI/dsh-codex-pet), based on upstream 0.1.12. Fork version **0.2.8** adds a native Windows floating companion outside the DSH window.
+An independent fork of [MichengAI/dsh-codex-pet](https://github.com/MichengAI/dsh-codex-pet), based on upstream 0.1.12. Fork version **0.3.0** adds a native Windows floating companion outside the DSH window.
 
 ## Features
 
 - Controls collapse to a small capsule until hovered. Idle pets show new conversation and voice only; tasks add a collapse/expand button and count.
 - Notifications appear above a bottom-positioned pet and below a top-positioned pet, preserving the mascot anchor as UI expands. Cards show visible assistant previews or tool names, a completion mark, and hover actions. Reply opens an inline follow-up sent to the original session in queue mode, preserving host permissions and round identity.
-- Sending a draft or pressing Ctrl+Enter creates and prompts a native DSH session. Voice uses the host-configured speech recognizer; enable and prepare DSH voice input first. Transcripts require an explicit send.
+- Sending a draft or pressing Ctrl+Enter creates and prompts a native DSH session. The voice button starts a continuous local call with automatic utterance submission and spoken reply summaries; right-click the pet for the original manual dictation flow.
 - Prepared local recognizers in standby/waking accept recording, matching DSH voice input; the host wakes the worker during transcription without requiring re-installation.
 
 - Transparent, always-on-top pet, visible while DSH is minimized or another app is active. Startup and state updates do not steal focus.
@@ -23,6 +23,18 @@ An independent fork of [MichengAI/dsh-codex-pet](https://github.com/MichengAI/ds
 Native floating display currently supports **Windows 10/11**, using a transparent Electron window and browser rendering. It does not modify the official DSH installation and reuses a generic Electron runtime at `~/.dsh/electron` (or `DSH_FLOATING_PET_ELECTRON`). Missing runtimes restore page display without automatic downloads.
 
 The development and validation baseline is **DSH 0.2.0-rc.2**. The upstream RC compatibility list remains declared. Linux/macOS keep page display; this fork has no native backend for them. The companion closes when DSH exits.
+
+## Continuous local calls
+
+Enable official DSH voice input and prepare **local SenseVoice**. Replies use installed Windows system voices, without a speech API key or additional speech API fees; the DSH text model keeps its existing configuration and billing. Cloud recognizers are rejected for this call path, including if selection changes while a call is active.
+
+- Select a conversation in DSH, click the pet voice button and grant microphone access. A pause of about one second submits an utterance automatically. Without a selected conversation, the first ordinary utterance creates one.
+- Calls stay pinned to the original session. Running work receives native `steer` input, idle work receives `queue`, and existing permissions remain intact. Switching the main view does not retarget the call.
+- Speaking interrupts playback while work continues. The microphone button pauses capture; the red phone hangs up. Hangup, owner disconnect and target removal release microphone and session observation without cancelling the background task.
+- Local controls include “status”, “stop the task”, “repeat that”, “stop speaking” and “hang up”, plus their documented Chinese equivalents. Approvals still use the native request UI.
+- Choose a voice and rate under Floating pet → Local voice call. Audio stays in plugin memory, utterances are capped at 30 seconds, and overlong recordings are discarded rather than submitted as truncated instructions. At most two utterances await recognition.
+
+This is segmented local recognition → DSH text work → system speech, with short spoken summaries. It has different latency and expressiveness from GPT-Live and does not add a separate realtime voice model or autonomous voice agent.
 
 ## Install
 
@@ -57,7 +69,7 @@ npm pack --dry-run --ignore-scripts
 
 Windows browser tests default to Edge (`DSH_PET_BROWSER_CHANNEL` overrides it). Fixtures use temporary data and fake sessions, never real user approvals. Native screenshots capture only the helper's own sprite under ignored `.preview/`.
 
-Validation includes 66 automated tests, page notifications and localization, native transparency/topmost/non-activation, 200% DPI, hidden-page continuity, approval transport, page fallback and process cleanup. The isolated native state matrix covers reduced motion, task states, hover/drag priority, request dismissal and follow-up gaze. Native macOS/Linux and all older desktop host combinations are unverified.
+Validation includes 82 automated tests, page notifications and localization, native transparency/topmost/non-activation, 200% DPI, hidden-page continuity, approval transport, page fallback and process cleanup. The isolated native state matrix covers reduced motion, task states, hover/drag priority, request dismissal and follow-up gaze. Native macOS/Linux and all older desktop host combinations are unverified.
 
 Actions are disabled for this fork. Push after local validation; upstream workflow history is retained without enabling automated publishing.
 

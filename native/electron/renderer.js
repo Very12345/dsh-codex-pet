@@ -7536,7 +7536,10 @@
     if (value.type === "snapshot") latest = value;
     for (const fn of subscribers) fn(value);
   });
-  var paths = { voice: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_jsx_runtime2.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { d: "M5 10v4M9 6v12M13 8v8M17 10v4" }) }), down: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { d: "m6 9 6 6 6-6" }), bell: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_jsx_runtime2.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { d: "M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" }) }), plus: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { d: "M12 5v14M5 12h14" }), send: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { d: "M12 19V5m-6 6 6-6 6 6" }), close: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { d: "m6 6 12 12M18 6 6 18" }), reply: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+  var paths = { mic: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("rect", { x: "9", y: "3", width: "6", height: "12", rx: "3" }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { d: "M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8" })
+  ] }), muted: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_jsx_runtime2.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { d: "M9 9V6a3 3 0 0 1 6 0v6M5 10v2a7 7 0 0 0 12 5M12 19v3M8 22h8M3 3l18 18" }) }), hangup: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { d: "M4 14c5-4 11-4 16 0v4l-5-1v-3M9 14v3l-5 1v-4" }), voice: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_jsx_runtime2.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { d: "M5 10v4M9 6v12M13 8v8M17 10v4" }) }), down: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { d: "m6 9 6 6 6-6" }), bell: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_jsx_runtime2.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { d: "M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" }) }), plus: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { d: "M12 5v14M5 12h14" }), send: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { d: "M12 19V5m-6 6 6-6 6 6" }), close: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { d: "m6 6 12 12M18 6 6 18" }), reply: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { d: "m8 6-5 5 5 5" }),
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { d: "M3 11h11a6 6 0 0 0 6-6" })
   ] }), stop: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("rect", { x: "6", y: "6", width: "12", height: "12", rx: "2", fill: "currentColor", stroke: "none" }), question: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
@@ -7623,6 +7626,7 @@
   function App() {
     const [state, setState] = (0, import_react2.useState)(latest), [collapsed, setCollapsed] = (0, import_react2.useState)(false), [compose, setCompose] = (0, import_react2.useState)(false), [draft, setDraft] = (0, import_react2.useState)(""), [files, setFiles] = (0, import_react2.useState)([]), [error, setError] = (0, import_react2.useState)(""), [voice, setVoice] = (0, import_react2.useState)("idle"), [busy, setBusy] = (0, import_react2.useState)(false), [menu, setMenu] = (0, import_react2.useState)(false), [request, setRequest] = (0, import_react2.useState)(null), [transient, setTransient] = (0, import_react2.useState)(null), [hover, setHover] = (0, import_react2.useState)(false), [cell, setCell] = (0, import_react2.useState)({ row: 0, column: 0, duration: 1 });
     const shell = (0, import_react2.useRef)(null), pet = (0, import_react2.useRef)(null), input = (0, import_react2.useRef)(null), clock = (0, import_react2.useRef)(new MotionClock()), dragging = (0, import_react2.useRef)(false), pending = (0, import_react2.useRef)(""), pixels = (0, import_react2.useRef)(null), replies = (0, import_react2.useRef)(/* @__PURE__ */ new Map());
+    const [call, setCall] = (0, import_react2.useState)({ phase: "off", active: false, muted: false, title: "", sessionId: null, heard: "", said: "", error: "", level: 0 });
     const [controls, setControls] = (0, import_react2.useState)(false), [above, setAbove] = (0, import_react2.useState)(false), [panelOffsetX, setPanelOffsetX] = (0, import_react2.useState)(0);
     const hoverTimer = (0, import_react2.useRef)(), replyDrafts = (0, import_react2.useRef)(/* @__PURE__ */ new Map());
     const captureId = (0, import_react2.useRef)(null), dragToken = (0, import_react2.useRef)("");
@@ -7667,6 +7671,7 @@
     (0, import_react2.useEffect)(() => {
       const listener = (value) => {
         if (value.type === "snapshot") setState(value);
+        else if (value.type === "call-state") setCall(value.value);
         else if (value.type === "layout") {
           setAbove(!!value.above);
           setPanelOffsetX(value.panelOffsetX || 0);
@@ -7800,7 +7805,7 @@
       observer.observe(shell.current);
       report();
       return () => observer.disconnect();
-    }, [state, cell, compose, collapsed, menu, request, controls, above, panelOffsetX]);
+    }, [state, cell, compose, collapsed, menu, request, controls, above, panelOffsetX, call]);
     (0, import_react2.useEffect)(() => {
       if (!state?.id) return;
       const ready = () => requestAnimationFrame(() => bridge.emit({ type: "shown", id: state.id }));
@@ -7847,8 +7852,8 @@
       return () => document.removeEventListener("pointerdown", outside, true);
     }, [compose]);
     (0, import_react2.useEffect)(() => {
-      window.__petInspect = () => ({ pose, cell, above, controls, panelOffsetX, toolbarAppearance: document.querySelector(".toolbar") ? { width: document.querySelector(".toolbar").getBoundingClientRect().width, height: document.querySelector(".toolbar").getBoundingClientRect().height } : null, replyStyle: document.querySelector(".notice-actions .round") ? { color: getComputedStyle(document.querySelector(".notice-actions .round")).color, background: getComputedStyle(document.querySelector(".notice-actions .round")).backgroundColor, iconWidth: document.querySelector(".notice-actions .round svg")?.getBoundingClientRect().width } : null, rendererDragging: dragging.current, toolbarButtonCount: document.querySelectorAll(".toolbar button").length, collapsed, composerVisible: compose && !collapsed, composerText: draft, composerError: document.querySelector(".composer-error")?.textContent || "", noticesVisible: !collapsed && items.length > 0, petBounds: pet.current?.getBoundingClientRect().toJSON(), toolbarBounds: document.querySelector(".toolbar")?.getBoundingClientRect().toJSON(), noticeBounds: document.querySelector(".notice")?.getBoundingClientRect().toJSON(), noticePreview: document.querySelector(".notice-copy")?.textContent, requestVisible: !!document.querySelector(".request"), replyVisible: !!document.querySelector(".follow-up") });
-    }, [pose, cell, above, controls, panelOffsetX, collapsed, compose, draft, items.length]);
+      window.__petInspect = () => ({ pose, cell, above, controls, panelOffsetX, toolbarAppearance: document.querySelector(".toolbar") ? { width: document.querySelector(".toolbar").getBoundingClientRect().width, height: document.querySelector(".toolbar").getBoundingClientRect().height } : null, replyStyle: document.querySelector(".notice-actions .round") ? { color: getComputedStyle(document.querySelector(".notice-actions .round")).color, background: getComputedStyle(document.querySelector(".notice-actions .round")).backgroundColor, iconWidth: document.querySelector(".notice-actions .round svg")?.getBoundingClientRect().width } : null, callPhase: call.phase, callVisible: !!document.querySelector(".call-panel"), callTitle: call.title, rendererDragging: dragging.current, toolbarButtonCount: document.querySelectorAll(".toolbar button").length, collapsed, composerVisible: compose && !collapsed, composerText: draft, composerError: document.querySelector(".composer-error")?.textContent || "", noticesVisible: !collapsed && items.length > 0, petBounds: pet.current?.getBoundingClientRect().toJSON(), toolbarBounds: document.querySelector(".toolbar")?.getBoundingClientRect().toJSON(), noticeBounds: document.querySelector(".notice")?.getBoundingClientRect().toJSON(), noticePreview: document.querySelector(".notice-copy")?.textContent, requestVisible: !!document.querySelector(".request"), replyVisible: !!document.querySelector(".follow-up") });
+    }, [pose, cell, above, controls, panelOffsetX, collapsed, compose, draft, items.length, call]);
     const openComposer = () => {
       setCompose(true);
       setCollapsed(false);
@@ -7895,12 +7900,7 @@
         } }),
         !compose || collapsed ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "toolbar-slot", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "toolbar " + (controls ? "expanded" : "compact"), style: { width: controls ? items.length ? 120 : 80 : 17 }, "data-hit": true, children: controls ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { title: t("\u65B0\u5BF9\u8BDD", "New conversation"), onClick: openComposer, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Icon, { name: "new" }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { title: t("\u8BED\u97F3\u8F93\u5165", "Voice input"), className: voice === "recording" ? "recording" : "", onClick: () => {
-            setCompose(true);
-            setCollapsed(false);
-            bridge.focus();
-            action({ type: "voice-toggle" });
-          }, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Icon, { name: "voice" }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { title: call.active ? t("\u7ED3\u675F\u901A\u8BDD", "End call") : t("\u672C\u5730\u8BED\u97F3\u901A\u8BDD", "Local voice call"), className: call.active ? "call-active" : "", onClick: () => action({ type: "call-toggle" }), children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Icon, { name: "voice" }) }),
           items.length ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("button", { title: t("\u6298\u53E0/\u5C55\u5F00\u5BF9\u8BDD", "Collapse/expand conversations"), onClick: fold, children: [
             /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: above && !collapsed ? "chevron-up" : "", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Icon, { name: collapsed ? "bell" : "down" }) }),
             collapsed ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "badge", children: items.length }) : null
@@ -7908,11 +7908,34 @@
         ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "compact-grip" }) }) }) : null,
         menu ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "menu", "data-hit": true, children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { onClick: () => {
+            setCompose(true);
+            setCollapsed(false);
+            setMenu(false);
+            bridge.focus();
+            action({ type: "voice-toggle" });
+          }, children: t("\u8BED\u97F3\u8F6C\u6587\u5B57", "Voice dictation") }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { onClick: () => {
             bridge.emit({ type: "settings" });
             setMenu(false);
           }, children: t("\u5BA0\u7269\u8BBE\u7F6E", "Pet settings") }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { onClick: () => bridge.emit({ type: "config", value: { desktop: false } }), children: t("\u8FD4\u56DE\u9875\u5185\u663E\u793A", "Show inside DSH") }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { onClick: () => bridge.emit({ type: "config", value: { visible: false } }), children: t("\u6536\u8D77\u5BA0\u7269", "Hide pet") })
+        ] }) : null,
+        call.active || call.error ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "call-panel " + (call.phase === "speaking" ? "is-speaking" : ""), "data-hit": true, "aria-label": t("\u672C\u5730\u8BED\u97F3\u901A\u8BDD", "Local voice call"), children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "call-header", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "call-dot " + (call.muted ? "is-muted" : "") }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: t("\u672C\u5730\u901A\u8BDD", "Local call") }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "call-phase", children: { off: t("\u5DF2\u7ED3\u675F", "Ended"), starting: t("\u6B63\u5728\u51C6\u5907", "Preparing"), listening: t("\u6B63\u5728\u542C", "Listening"), recognizing: t("\u6B63\u5728\u8BC6\u522B", "Recognizing"), working: t("\u4EFB\u52A1\u5904\u7406\u4E2D", "Working"), "preparing-audio": t("\u51C6\u5907\u8BED\u97F3", "Preparing audio"), speaking: t("\u6B63\u5728\u8BF4", "Speaking"), muted: t("\u5DF2\u6682\u505C\u6536\u97F3", "Mic paused"), error: t("\u6682\u4E0D\u53EF\u7528", "Unavailable") }[call.phase] }),
+            call.active ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { className: "round", title: call.muted ? t("\u6062\u590D\u6536\u97F3", "Resume mic") : t("\u6682\u505C\u6536\u97F3", "Pause mic"), "aria-pressed": call.muted, onClick: () => action({ type: "call-mute" }), children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Icon, { name: call.muted ? "muted" : "mic" }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { className: "round call-hangup", title: t("\u6302\u65AD\uFF0C\u540E\u53F0\u4EFB\u52A1\u7EE7\u7EED", "Hang up; keep task running"), onClick: () => action({ type: "call-end" }), children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Icon, { name: "hangup" }) })
+            ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { className: "round", title: t("\u5173\u95ED\u63D0\u793A", "Dismiss"), onClick: () => action({ type: "call-end" }), children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Icon, { name: "close" }) })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "call-target", children: call.title || t("\u7B2C\u4E00\u53E5\u8BDD\u540E\u521B\u5EFA\u5BF9\u8BDD", "A conversation starts on your first message") }),
+          call.heard ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { className: "call-heard", children: call.heard }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { className: "call-hint", children: t("\u8BF4\u5B8C\u540E\u7A0D\u4F5C\u505C\u987F\uFF0C\u6D88\u606F\u4F1A\u81EA\u52A8\u53D1\u9001\u3002", "Pause after speaking to send automatically.") }),
+          call.said ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { className: "call-said", children: call.said }) : null,
+          call.active ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "call-level", "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { style: { width: Math.max(0.02, call.level) * 100 + "%" } }) }) : null,
+          call.error ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { className: "call-error", role: "alert", children: call.error }) : null
         ] }) : null,
         !collapsed && compose ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("form", { className: "composer", "data-hit": true, onSubmit: (event) => {

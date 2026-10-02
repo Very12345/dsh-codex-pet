@@ -7,3 +7,4 @@
 - Build and commit lib/ so Git URL installation requires no package lifecycle build script. Keep development data, credentials, private screenshots and node_modules out of Git.
 - Run npm run verify, npm run smoke, npm run smoke:desktop and node scripts/smoke-desktop-client.mjs before shipping relevant changes. Native tests use owned fixtures only, never users' actual sessions or approvals.
 - Pushes are used for distribution. Do not create GitHub Releases or enable Actions in this fork unless explicitly requested.
+- Local calls must not silently use cloud recognition, request API keys, or change host permissions. Capture starts only from an explicit call action. Hangup stops audio and releases the observation lease without cancelling work. Tests use simulated microphones and silent WAV synthesis; do not record real microphones or play speakers automatically.

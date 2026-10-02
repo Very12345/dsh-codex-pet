@@ -10,10 +10,11 @@ import {imageVersion, type PetLibrary} from './library.ts';
 import type {CompanionSnapshot} from './companion-api.ts';
 import {electronPath} from './electron-path.ts';
 import {createServer,type Server,type Socket} from 'node:net';
+import type {SpeechOutput} from './local-speech.ts';
 
 type Lease = {owner:string; token:string; stream?:ServerResponse; reconnect?:ReturnType<typeof setTimeout>};
 type Reply = {resolve:(value?:unknown)=>void; reject:(error:Error)=>void; timer:ReturnType<typeof setTimeout>};
-export interface SpeechHost {snapshot():{providers:{id:string;preparation?:{phase:string;message?:string}}[];selection:{providerId:string}};resolve(request:{audio:Buffer}):unknown;transcribe(spec:unknown,signal:AbortSignal):Promise<{text:string}>;}
+export interface SpeechHost {snapshot():{providers:{id:string;location?:'host-local'|'cloud';preparation?:{phase:string;message?:string}}[];selection:{providerId:string}};resolve(request:{audio:Buffer}):unknown;transcribe(spec:unknown,signal:AbortSignal):Promise<{text:string}>;}
 export class DesktopRuntime {
   readonly supported: boolean;
   error='';
@@ -31,7 +32,7 @@ export class DesktopRuntime {
   private speechJobs=new Set<AbortController>();
   private socketServer?:Server;
   private socket?:Socket;
-  constructor(private library:PetLibrary, private options:{platform?:string; spawn?:typeof spawn; startupTimeoutMs?:number; reconnectMs?:number;speech?:()=>SpeechHost|undefined;fixture?:boolean}={}) {
+  constructor(private library:PetLibrary, private options:{platform?:string; spawn?:typeof spawn; startupTimeoutMs?:number; reconnectMs?:number;speech?:()=>SpeechHost|undefined;output?:SpeechOutput;fixture?:boolean}={}) {
     this.supported=(options.platform ?? process.platform)==='win32';
   }
   get running(){return !!this.child && !this.error;}
@@ -163,7 +164,7 @@ export class DesktopRuntime {
   }
   private async dispatch(command:unknown,nativeId?:string){
     if(!this.lease?.stream){if(this.child)this.send({type:'result',id:nativeId,ok:false,error:'DSH connection is unavailable'});return;}
-    const id=randomUUID(),finished=this.wait(id,(command as {type?:string})?.type==='voice-toggle'?180000:30000);
+    const id=randomUUID(),finished=this.wait(id,['voice-toggle','call-toggle'].includes(String((command as {type?:string})?.type))?180000:30000);
     this.event('command',{id,command});
     try{await finished;this.send({type:'result',id:nativeId ?? id,ok:true});}
     catch(error){if(this.child)this.send({type:'result',id:nativeId ?? id,ok:false,error:String(error)});}
@@ -230,11 +231,12 @@ export class DesktopRuntime {
     child.once('exit',()=>clearTimeout(stopTimer));
   }
   release(token:unknown){this.authorized(token);this.stop();}
-  voiceReady(token:unknown){
+  voiceReady(token:unknown,localOnly=false){
     this.authorized(token);const speech=this.options.speech?.();
     if(!speech)throw new Error('请先在 DSH 中启用语音输入插件');
     const state=speech.snapshot(),provider=state.providers.find(provider=>provider.id===state.selection.providerId);
     if(!provider)throw new Error('当前语音识别器不可用，请在 DSH 语音设置中选择可用的识别器');
+    if(localOnly&&provider.location!=='host-local')throw new Error('本地通话需要在 DSH 语音设置中选择本地识别器（SenseVoice）');
     // Match the official voice UI: cached standby and worker waking both
     // accept recording; the host owns wake-up, queuing and cancellation.
     const preparation=provider.preparation;
@@ -245,14 +247,27 @@ export class DesktopRuntime {
     }
     return speech;
   }
-  async transcribe(token:unknown,encoded:unknown,caller:AbortSignal){
-    const speech=this.voiceReady(token);
+  async transcribe(token:unknown,encoded:unknown,caller:AbortSignal,localOnly=false){
+    const speech=this.voiceReady(token,localOnly);
     if(typeof encoded!=='string' || encoded.length>Math.ceil(4*1024*1024/3)*4)throw new Error('录音过大');
     const audio=Buffer.from(encoded,'base64');
     if(audio.toString('base64')!==encoded || audio.length<46 || audio.toString('ascii',0,4)!=='RIFF' || audio.toString('ascii',8,12)!=='WAVE' || audio.toString('ascii',36,40)!=='data' || audio.readUInt16LE(20)!==1 || audio.readUInt16LE(22)!==1 || audio.readUInt16LE(34)!==16 || audio.readUInt32LE(40)!==audio.length-44 || audio.readUInt32LE(24)<8000 || audio.readUInt32LE(24)>48000 || (audio.length-44)/2/audio.readUInt32LE(24)>120)throw new Error('无效的录音');
     const controller=new AbortController();this.speechJobs.add(controller);
     try{return await speech.transcribe(speech.resolve({audio}),AbortSignal.any([caller,controller.signal]));}
     finally{this.speechJobs.delete(controller);}
+  }
+  voices(){if(!this.options.output)throw new Error('系统语音输出不可用');return this.options.output.voices();}
+  async synthesize(token:unknown,value:Record<string,unknown>,caller:AbortSignal){
+    this.authorized(token);if(!this.options.output)throw new Error('系统语音输出不可用');if(typeof value.text!=='string')throw new Error('语音输出文字无效');
+    const controller=new AbortController();this.speechJobs.add(controller);
+    try{const bytes=await this.options.output.synthesize(value.text,this.library.config.callVoice??'',this.library.config.callRate??0,value.language==='en'?'en':'zh',AbortSignal.any([caller,controller.signal]));return {audioBase64:bytes.toString('base64')};}
+    finally{this.speechJobs.delete(controller);}
+  }
+  callState(token:unknown,value:unknown){
+    this.authorized(token);if(!value||typeof value!=='object')throw new Error('通话状态无效');const source=value as Record<string,unknown>;
+    if(!['off','starting','listening','recognizing','working','preparing-audio','speaking','muted','error'].includes(String(source.phase)))throw new Error('通话状态无效');
+    const short=(key:string,limit:number)=>typeof source[key]==='string'?source[key].slice(0,limit):'';
+    this.send({type:'call-state',value:{phase:source.phase,active:source.active===true,muted:source.muted===true,title:short('title',160),sessionId:short('sessionId',100)||null,heard:short('heard',500),said:short('said',500),error:short('error',1000),level:typeof source.level==='number'&&Number.isFinite(source.level)?Math.max(0,Math.min(1,source.level)):0}});
   }
   composer(token:unknown,value:unknown){
     this.authorized(token);if(!value || typeof value!=='object')throw new Error('Invalid composer update');
