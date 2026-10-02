@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.3] - 2026-10-02
+
+- Correct directional animation targets: ordinary mouse movement no longer replaces idle/status animation; only the active floating editor caret supplies a gaze target.
+- Dismiss quick chat on outside click or native window blur, retaining unsent text and attachments when reopened. Keep it open during the attachment picker.
+- Add native regression checks for outside click, actual focus loss and retained drafts.
+
 ## [0.2.2] - 2026-10-02
 
 - Replace the WinForms companion with an independently implemented transparent Electron window using the existing shared runtime; compact single-line chat, pixelated sprites, rounded notifications and SVG actions.

@@ -7507,7 +7507,7 @@
     return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("svg", { viewBox: "0 0 24 24", "aria-hidden": "true", children: paths[name] });
   }
   function App() {
-    const [state, setState] = (0, import_react2.useState)(latest), [collapsed, setCollapsed] = (0, import_react2.useState)(false), [compose, setCompose] = (0, import_react2.useState)(false), [draft, setDraft] = (0, import_react2.useState)(""), [files, setFiles] = (0, import_react2.useState)([]), [error, setError] = (0, import_react2.useState)(""), [voice, setVoice] = (0, import_react2.useState)("idle"), [busy, setBusy] = (0, import_react2.useState)(false), [menu, setMenu] = (0, import_react2.useState)(false), [request, setRequest] = (0, import_react2.useState)(null), [transient, setTransient] = (0, import_react2.useState)(null), [hover, setHover] = (0, import_react2.useState)(false), [pointer, setPointer] = (0, import_react2.useState)({ x: 0, y: 0 }), [cell, setCell] = (0, import_react2.useState)({ row: 0, column: 0, duration: 1 });
+    const [state, setState] = (0, import_react2.useState)(latest), [collapsed, setCollapsed] = (0, import_react2.useState)(false), [compose, setCompose] = (0, import_react2.useState)(false), [draft, setDraft] = (0, import_react2.useState)(""), [files, setFiles] = (0, import_react2.useState)([]), [error, setError] = (0, import_react2.useState)(""), [voice, setVoice] = (0, import_react2.useState)("idle"), [busy, setBusy] = (0, import_react2.useState)(false), [menu, setMenu] = (0, import_react2.useState)(false), [request, setRequest] = (0, import_react2.useState)(null), [transient, setTransient] = (0, import_react2.useState)(null), [hover, setHover] = (0, import_react2.useState)(false), [cell, setCell] = (0, import_react2.useState)({ row: 0, column: 0, duration: 1 });
     const shell = (0, import_react2.useRef)(null), pet = (0, import_react2.useRef)(null), input = (0, import_react2.useRef)(null), started = (0, import_react2.useRef)(performance.now()), lastPose = (0, import_react2.useRef)(""), dragging = (0, import_react2.useRef)(false), pending = (0, import_react2.useRef)(""), pixels = (0, import_react2.useRef)(null), replies = (0, import_react2.useRef)(/* @__PURE__ */ new Map());
     const size = state?.config?.size || 120, items = state?.notifications?.items || [], requestedPose = transient ?? (hover ? "jumping" : state?.notifications?.activity?.pose || "idle"), pose = requestedPose in ANIMATIONS ? requestedPose : "idle";
     const chinese = !String(state?.language || "zh").startsWith("en"), t = (zh, en2) => chinese ? zh : en2;
@@ -7523,10 +7523,18 @@
       }, 3e4);
       replies.current.set(id, { resolve, reject, timer });
     });
+    const dismissComposer = () => {
+      setCompose(false);
+      setMenu(false);
+      setVoice("idle");
+      action({ type: "voice-cancel" });
+    };
+    const dismissRef = (0, import_react2.useRef)(dismissComposer);
+    dismissRef.current = dismissComposer;
     (0, import_react2.useEffect)(() => {
       const listener = (value) => {
         if (value.type === "snapshot") setState(value);
-        else if (value.type === "pointer") setPointer({ x: value.x, y: value.y });
+        else if (value.type === "window-blur") dismissRef.current();
         else if (value.type === "drag-motion") {
           if (value.dx >= 4) setTransient("running-right");
           else if (value.dx <= -4) setTransient("running-left");
@@ -7551,8 +7559,12 @@
             } else setError(value.error || "");
           }
         } else if (value.type === "fixture-ui") {
-          if (value.action === "new") setCompose(true);
-          else if (value.action === "text") setDraft(value.text || "");
+          if (value.action === "new") {
+            setCompose(true);
+            setCollapsed(false);
+            bridge.focus();
+          } else if (value.action === "text") setDraft(value.text || "");
+          else if (value.action === "outside") pet.current?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 2 }));
           else if (value.action === "collapse") {
             setCollapsed(true);
             setCompose(false);
@@ -7584,11 +7596,18 @@
         lastPose.current = pose;
       }
       let timer;
+      const measure = document.createElement("canvas").getContext("2d");
       const tick = () => {
         const reduced = matchMedia("(prefers-reduced-motion:reduce)").matches;
         const frame = motionFrameAt(pose, performance.now() - started.current, reduced);
-        const rect = pet.current?.getBoundingClientRect();
-        const gaze = state?.version === 2 && ["idle", "running", "waving"].includes(pose) && !transient && rect ? gazeCell(pointer.x - (rect.left + rect.width / 2), pointer.y - (rect.top + rect.height / 2)) : null;
+        const rect = pet.current?.getBoundingClientRect(), editor = input.current;
+        let gaze = null;
+        if (!reduced && state?.version === 2 && ["idle", "running", "waving"].includes(pose) && !transient && rect && editor && document.hasFocus() && document.activeElement === editor && measure) {
+          const box = editor.getBoundingClientRect(), style = getComputedStyle(editor);
+          measure.font = style.font;
+          const caretX = Math.max(0, Math.min(box.width, measure.measureText(editor.value.slice(0, editor.selectionStart ?? editor.value.length)).width - editor.scrollLeft));
+          gaze = gazeCell(box.left + caretX - (rect.left + rect.width / 2), box.top + box.height / 2 - (rect.top + rect.height / 2));
+        }
         setCell((old) => {
           const next = gaze ? { ...frame, ...gaze } : frame;
           return old.row === next.row && old.column === next.column ? old : next;
@@ -7597,7 +7616,7 @@
       };
       timer = requestAnimationFrame(tick);
       return () => cancelAnimationFrame(timer);
-    }, [pose, pointer, state?.version, transient]);
+    }, [pose, state?.version, transient]);
     (0, import_react2.useLayoutEffect)(() => {
       if (!shell.current) return;
       const report = () => {
@@ -7640,13 +7659,19 @@
       }
     }, [compose]);
     (0, import_react2.useEffect)(() => {
+      if (!compose) return;
+      const outside = (event) => {
+        if (!(event.target instanceof Element) || !event.target.closest(".composer,.attachments,.status,.composer-error")) dismissRef.current();
+      };
+      document.addEventListener("pointerdown", outside, true);
+      return () => document.removeEventListener("pointerdown", outside, true);
+    }, [compose]);
+    (0, import_react2.useEffect)(() => {
       window.__petInspect = () => ({ pose, cell, collapsed, composerVisible: compose && !collapsed, composerText: draft, noticesVisible: !collapsed && items.length > 0, petBounds: pet.current?.getBoundingClientRect().toJSON(), toolbarBounds: document.querySelector(".toolbar")?.getBoundingClientRect().toJSON(), noticeBounds: document.querySelector(".notice")?.getBoundingClientRect().toJSON() });
     }, [pose, cell, collapsed, compose, draft, items.length]);
     const openComposer = () => {
       setCompose(true);
       setCollapsed(false);
-      setDraft("");
-      setFiles([]);
       setError("");
       bridge.focus();
     };

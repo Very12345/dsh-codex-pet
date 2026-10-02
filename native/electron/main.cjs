@@ -2,7 +2,7 @@ const {app,BrowserWindow,ipcMain,screen,dialog}=require('electron');
 const {join}=require('node:path');const readline=require('node:readline');const {createConnection}=require('node:net');
 const parent=Number(process.argv.find(value=>value.startsWith('--parent-pid='))?.split('=')[1]);
 app.setAppUserModelId('org.very12345.dsh-floating-pet');
-let win,snapshot,zones=[],drag,closed=false,currentImage='',fixture=process.env.DSH_PET_NATIVE_TEST==='1',lastPointer;
+let win,snapshot,zones=[],drag,closed=false,currentImage='',fixture=process.env.DSH_PET_NATIVE_TEST==='1',choosingFiles=false;
 let pipeReady=false,pageReady=false;
 const pipe=createConnection({host:'127.0.0.1',port:Number(process.env.DSH_FLOATING_PET_BRIDGE_PORT)});
 pipe.on('error',quit);pipe.on('close',quit);pipe.on('connect',()=>{pipe.write(JSON.stringify({token:process.env.DSH_FLOATING_PET_BRIDGE_TOKEN,pid:process.pid})+'\n');pipeReady=true;ready();});
@@ -27,7 +27,8 @@ app.whenReady().then(()=>{
  win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',event=>event.preventDefault());
  win.webContents.session.setPermissionRequestHandler((_contents,_permission,callback)=>callback(false));
  ipcMain.on('pet:focus',event=>{if(owner(event)){win.setIgnoreMouseEvents(false);win.focus();}});
- ipcMain.handle('pet:files',async event=>{if(!owner(event))return [];const result=await dialog.showOpenDialog(win,{properties:['openFile','multiSelections']});win.focus();return result.canceled?[]:result.filePaths;});
+ ipcMain.handle('pet:files',async event=>{if(!owner(event))return [];choosingFiles=true;try{const result=await dialog.showOpenDialog(win,{properties:['openFile','multiSelections']});return result.canceled?[]:result.filePaths;}finally{choosingFiles=false;if(!closed)win.focus();}});
+ win.on('blur',()=>{if(!choosingFiles&&!closed)win.webContents.send('pet:message',{type:'window-blur'});});
  ipcMain.on('pet:zones',(event,value)=>{if(owner(event))zones=validZones(value);});
  ipcMain.on('pet:height',(event,value)=>{if(owner(event)&&Number.isFinite(value))updateSize(value);});
  ipcMain.on('pet:drag',(event,active)=>{
@@ -52,7 +53,10 @@ app.whenReady().then(()=>{
    win.webContents.send('pet:message',value);if(value.config?.visible!==false){if(!win.isVisible())win.showInactive();}else win.hide();
   }else if(value.type==='inspect'){
    try{const state=await win.webContents.executeJavaScript('window.__petInspect()');const screenshot=await win.webContents.capturePage();emit({type:'inspection',id:value.id,pid:process.pid,visible:win.isVisible(),focused:win.isFocused(),topmost:win.isAlwaysOnTop(),bounds:win.getBounds(),workArea:screen.getDisplayMatching(win.getBounds()).workArea,scale:screen.getDisplayMatching(win.getBounds()).scaleFactor,image:screenshot.toPNG().toString('base64'),...state});}catch(error){emit({type:'native-error',error:error.message});}
-  }else if(value.type==='fixture-ui'&&fixture)win.webContents.send('pet:message',value);
+  }else if(value.type==='fixture-ui'&&fixture){
+   if(value.action==='blur'){const focusSink=new BrowserWindow({width:180,height:80,show:true,frame:false,skipTaskbar:true,title:'Pet test focus fixture',webPreferences:{sandbox:true}});focusSink.focus();setTimeout(()=>focusSink.destroy(),250);}
+   else win.webContents.send('pet:message',value);
+  }
   else if(['result','composer'].includes(value.type))win.webContents.send('pet:message',value);
  });
  const pointer=setInterval(()=>{
@@ -60,7 +64,7 @@ app.whenReady().then(()=>{
   if(drag){const dx=cursor.x-drag.cursor.x,dy=cursor.y-drag.cursor.y;if(!drag.moved&&Math.abs(dx)<4&&Math.abs(dy)<4)return;drag.moved=true;const area=screen.getDisplayNearestPoint(cursor).workArea;win.setPosition(Math.round(Math.max(area.x,Math.min(area.x+area.width-bounds.width,drag.bounds.x+dx))),Math.round(Math.max(area.y,Math.min(area.y+area.height-bounds.height,drag.bounds.y+dy))),false);win.webContents.send('pet:message',{type:'drag-motion',dx});return;}
   const x=cursor.x-bounds.x,y=cursor.y-bounds.y;
   const hit=zones.some(rect=>{if(x<rect.x||y<rect.y||x>=rect.x+rect.width||y>=rect.y+rect.height)return false;if(!rect.mask)return true;const px=Math.floor((x-rect.x)/rect.width*192),py=Math.floor((y-rect.y)/rect.height*208),i=py*192+px,mask=Buffer.from(rect.mask,'base64');return !!(mask[i>>3]&(1<<(i&7)));});
-  win.setIgnoreMouseEvents(!hit,{forward:true});if(!lastPointer||lastPointer.x!==x||lastPointer.y!==y){lastPointer={x,y};win.webContents.send('pet:message',{type:'pointer',x,y});}
+  win.setIgnoreMouseEvents(!hit,{forward:true});
  },40);
  const watch=setInterval(()=>{if(parent>0)try{process.kill(parent,0);}catch(error){if(error.code==='ESRCH')quit();}},1000);
  win.on('closed',()=>{clearInterval(pointer);clearInterval(watch);quit();});

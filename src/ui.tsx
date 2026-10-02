@@ -21,7 +21,6 @@ import {
   ANIMATIONS,
   BASE,
   IDLE,
-  lookCell,
   type Activity,
   type Config,
   type Library,
@@ -416,7 +415,6 @@ export function FloatingPet({
   } | null>(null);
   const [position, setPosition] = useState({ left: 0, top: 0 }),
     [action, setAction] = useState<Pose | null>(null),
-    [look, setLook] = useState<{ row: number; col: number } | null>(null),
     [menu, setMenu] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [menuError, setMenuError] = useState("");
@@ -436,7 +434,6 @@ export function FloatingPet({
   }, [place]);
   const perform = useCallback((pose: Pose) => {
     if (timer.current) clearTimeout(timer.current);
-    setLook(null);
     setAction(pose);
     const anim = ANIMATIONS[pose];
     timer.current = setTimeout(
@@ -463,29 +460,6 @@ export function FloatingPet({
     }, 18000);
     return () => clearInterval(interval);
   }, [activity.pose, action, perform]);
-  useEffect(() => {
-    const track = (event: MouseEvent) => {
-      if (
-        activity.pose !== "idle" ||
-        action ||
-        drag.current ||
-        pet.version !== 2
-      ) {
-        setLook(null);
-        return;
-      }
-      const box = root.current?.getBoundingClientRect();
-      if (box)
-        setLook(
-          lookCell(
-            event.clientX - box.left - config.size / 2,
-            event.clientY - box.top - petHeight / 2,
-          ),
-        );
-    };
-    window.addEventListener("mousemove", track);
-    return () => window.removeEventListener("mousemove", track);
-  }, [activity.pose, action, pet.version, config.size, petHeight]);
   useEffect(() => {
     if (!menu) return;
     const close = (event: PointerEvent) => {
@@ -584,7 +558,6 @@ export function FloatingPet({
           )
             point.moved = true;
           if (!point.moved) return;
-          setLook(null);
           setAction(dx < 0 ? "running-left" : "running-right");
           setPosition({
             left: Math.max(
@@ -638,7 +611,6 @@ export function FloatingPet({
           size={config.size}
           pose={action ?? activity.pose}
           animate
-          look={look}
         />
       </button>
       {menu && (
