@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.8] - 2026-10-03
+
+- Accept prepared speech recognizers in standby or waking, matching DSH's official voice input instead of treating them as uninstalled. The host retains wake-up, queuing and cancellation ownership.
+- Distinguish missing providers, resource checks, downloads, loads and preparation errors in feedback; verify standby/waking transcription without re-preparation.
+- Clear previous voice feedback after a successful retry rather than leaving the old preparation error visible.
+- Restart animation when caret gaze ends and extend gaze to wrapped follow-up input. Preserve the original three-cycle bursts and reduced-motion frames.
+- Remove the added desktop double-click jump and page idle random gestures; close stale or folded request panels without answering them. Verify the native task/hover/drag/input/request state matrix.
+
 ## [0.2.7] - 2026-10-02
 
 - Use the locally identified `square-and-pencil-light-20` drawing for the floating new-conversation button, matching its rounded pen and frame instead of the previous angular outline.

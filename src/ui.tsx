@@ -28,7 +28,7 @@ import {
   type Pose,
 } from "./model.ts";
 import { styles } from "./styles.ts";
-import {motionFrameAt} from './motion.ts';
+import {MotionClock} from './motion.ts';
 export async function request(path: string, data?: unknown): Promise<Library> {
   const response = await fetch(`${BASE}/api/${path}`, {
     method: data === undefined ? "GET" : "POST",
@@ -94,21 +94,21 @@ export function Sprite({
   animate?: boolean;
   look?: { row: number; col: number } | null;
 }) {
-  const element = useRef<HTMLDivElement>(null);
+  const element = useRef<HTMLDivElement>(null),clock=useRef(new MotionClock());
   useEffect(() => {
     const node = element.current;
     if (!node) return;
-    const started=performance.now();let id=0;
+    let id=0;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const paint = (elapsed=0) => {
-      const frame=motionFrameAt(pose,elapsed,reduced.matches);
+    const paint = () => {
+      const frame=clock.current.sample(pose,performance.now(),pet.version===2&&look?{row:look.row,column:look.col}:null,reduced.matches);
       const row = pet.version === 2 && look ? look.row : frame.row;
       const col = pet.version === 2 && look ? look.col : frame.column;
       node.style.backgroundPosition = `${-col * size}px ${(-row * size * 208) / 192}px`;
     };
     paint();
     const tick = (time: number) => {
-      if(!document.hidden)paint(time-started);
+      if(!document.hidden)paint();
       id = requestAnimationFrame(tick);
     };
     if (animate && !look && !reduced.matches) id = requestAnimationFrame(tick);
@@ -447,19 +447,6 @@ export function FloatingPet({
     },
     [],
   );
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (
-        activity.pose === "idle" &&
-        !action &&
-        !drag.current &&
-        !document.hidden &&
-        !window.matchMedia("(prefers-reduced-motion: reduce)").matches
-      )
-        perform(Math.random() < 0.7 ? "waving" : "jumping");
-    }, 18000);
-    return () => clearInterval(interval);
-  }, [activity.pose, action, perform]);
   useEffect(() => {
     if (!menu) return;
     const close = (event: PointerEvent) => {

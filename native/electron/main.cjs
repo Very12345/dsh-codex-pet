@@ -76,6 +76,7 @@ app.whenReady().then(()=>{
    else if(value.action==='drag-start'){win.focus();win.setIgnoreMouseEvents(false);const state=await win.webContents.executeJavaScript('window.__petInspect()');const rect=state.petBounds;win.webContents.sendInputEvent({type:'mouseDown',button:'left',x:Math.round(rect.x+rect.width/2),y:Math.round(rect.y+rect.height/2),clickCount:1});}
    else if(value.action==='drag-native-up')win.webContents.emit('before-mouse-event',{}, {type:'mouseUp',button:'left'});
    else if(value.action==='drag-stale'){const old='00000000-0000-0000-0000-000000000000';endDrag(old);win.webContents.send('pet:message',{type:'drag-ended',id:old});}
+   else if(value.action==='drag-left'||value.action==='drag-right')win.webContents.send('pet:message',{type:'drag-motion',dx:value.action==='drag-left'?-8:8});
    else if(value.action==='reply-hover'){const rect=await win.webContents.executeJavaScript('document.querySelector(".notice-actions .round").getBoundingClientRect().toJSON()');win.webContents.sendInputEvent({type:'mouseMove',x:Math.round(rect.x+rect.width/2),y:Math.round(rect.y+rect.height/2)});}
    else if(value.action==='drag-reset'){win.webContents.sendInputEvent({type:'mouseUp',button:'left',x:0,y:0,clickCount:1});win.webContents.sendInputEvent({type:'mouseMove',x:0,y:0});}
    else if(value.action==='drag-escape')win.webContents.sendInputEvent({type:'keyDown',keyCode:'Escape'});

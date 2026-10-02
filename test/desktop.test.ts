@@ -81,6 +81,19 @@ test('speech stays on the host-selected recognizer and sends validated audio wit
  assert.deepEqual(await runtime.transcribe(token,wav.toString('base64'),new AbortController().signal),{text:'识别结果'});assert.ok(received?.equals(wav));
  await assert.rejects(runtime.transcribe(token,'not-wave',new AbortController().signal),/无效/);
 });
+test('installed recognizer may be in standby or waking; transcription remains host-owned without preparing or downloading again',async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'dsh-pet-standby-')),library=new PetLibrary(resolve('assets/codex'),dir);await library.init();
+ const child=new Helper();let phase='standby',calls=0;
+ const speech={snapshot:()=>({providers:[{id:'local',preparation:{phase}}],selection:{providerId:'local'}}),resolve:({audio}:{audio:Buffer})=>({audio}),transcribe:async()=>{calls++;return {text:'宿主自动唤醒后识别的文字'};}};
+ const runtime=new DesktopRuntime(library,{platform:'win32',speech:()=>speech,spawn:(()=>{setImmediate(()=>child.message({type:'ready'}));return child;}) as unknown as typeof spawn});
+ t.after(async()=>{runtime.dispose();await rm(dir,{recursive:true,force:true});});const {token}=await runtime.begin('standby-fixture');
+ const wav=Buffer.from(encodeWave([Float32Array.from([.1,.2])],16000));
+ for(phase of ['standby','waking']){assert.equal(runtime.voiceReady(token),speech);assert.deepEqual(await runtime.transcribe(token,wav.toString('base64'),new AbortController().signal),{text:'宿主自动唤醒后识别的文字'});}
+ assert.equal(calls,2);
+ for(phase of ['unprepared','checking','loading','downloading','failed','cancelled'])assert.throws(()=>runtime.voiceReady(token),/语音/);
+ assert.equal(calls,2,'unusable states must not start transcription');
+});
+
 test('client bridge claims display only after paint, handles minimized-window actions and releases on disconnect',async()=>{
   const commands:unknown[]=[],display:boolean[]=[],posts:{path:string;data:any}[]=[];
   const provider=createCompanionProvider({command:async command=>{commands.push(command);},updateConfig:async()=>{},openSettings(){commands.push('settings');},externalDisplay:value=>display.push(value)});

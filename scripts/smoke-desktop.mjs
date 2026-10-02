@@ -1,8 +1,10 @@
 import {createHost} from '../lib/index.js';import {mkdtemp,writeFile,rm} from 'node:fs/promises';import {tmpdir} from 'node:os';import {join} from 'node:path';import sharp from 'sharp';import assert from 'node:assert/strict';
+import {PassThrough} from 'node:stream';
 if(process.platform!=='win32'){console.log('Desktop smoke requires Windows');process.exit(0);}
 const directory=await mkdtemp(join(tmpdir(),'pet-electron-'));const host=await createHost({dataRoot:directory,fixture:true});
 try{
  const {token}=await host.desktop.begin('electron-check');
+ const stream=new PassThrough();stream.writeHead=()=>{};stream.on('data',chunk=>{const match=String(chunk).match(/^event: command\ndata: (.+)\n\n$/);if(match){const message=JSON.parse(match[1]);setImmediate(()=>{try{host.desktop.acknowledge(token,message.id,undefined);}catch{}});}});host.desktop.attach(token,stream);
  const pet=host.library.pets.find(pet=>pet.id===host.library.config.selected);
  const image=(await sharp(await host.library.asset(pet.id)).png().toBuffer()).toString('base64');
  await host.desktop.publish(token,{image,spriteKey:pet.url,language:'zh-CN',theme:'light',notifications:{activity:{pose:'running'},items:[{id:'fixture',token:'1',title:'阅读科研项目内容',pose:'running',text:'正在思考'}],hidden:0}});
@@ -13,7 +15,7 @@ try{
  for(const action of ['drag-loss','drag-cancel','drag-native-up','drag-escape','blur']){
   host.desktop['send']({type:'fixture-ui',action:'drag-start'});await new Promise(resolve=>setTimeout(resolve,80));
   let active=await host.desktop.inspect();const dragDeadline=Date.now()+1500;while((!active.nativeDragging||!active.rendererDragging)&&Date.now()<dragDeadline){await new Promise(resolve=>setTimeout(resolve,40));active=await host.desktop.inspect();}assert.equal(active.nativeDragging,true,'native drag should start before '+action);assert.equal(active.rendererDragging,true);
-  if(action==='drag-loss'){host.desktop['send']({type:'fixture-ui',action:'drag-stale'});await new Promise(resolve=>setTimeout(resolve,80));const retained=await host.desktop.inspect();assert.equal(retained.nativeDragging,true);assert.equal(retained.rendererDragging,true,'old drag acknowledgements must not cancel a newer drag');}
+  if(action==='drag-loss'){host.desktop['send']({type:'fixture-ui',action:'drag-stale'});await new Promise(resolve=>setTimeout(resolve,80));const retained=await host.desktop.inspect();assert.equal(retained.nativeDragging,true);assert.equal(retained.rendererDragging,true,'old drag acknowledgements must not cancel a newer drag');for(const direction of ['left','right']){host.desktop['send']({type:'fixture-ui',action:'drag-'+direction});await new Promise(resolve=>setTimeout(resolve,80));assert.equal((await host.desktop.inspect()).pose,'running-'+direction);}}
   host.desktop['send']({type:'fixture-ui',action});await new Promise(resolve=>setTimeout(resolve,action==='blur'?300:100));
   const stopped=await host.desktop.inspect();assert.equal(stopped.nativeDragging,false,action+' clears native drag');assert.equal(stopped.rendererDragging,false,action+' clears renderer capture');
   await new Promise(resolve=>setTimeout(resolve,120));assert.deepEqual((await host.desktop.inspect()).bounds,stopped.bounds,action+' leaves position stable');
@@ -28,6 +30,7 @@ try{
  host.desktop['send']({type:'fixture-ui',action:'new'});await new Promise(resolve=>setTimeout(resolve,200));
  const draft=await host.desktop.inspect();assert.equal(draft.composerVisible,true);await writeFile('.preview/electron-composer.png',Buffer.from(draft.image,'base64'));
  assert.equal(draft.toolbarBounds,undefined);assert.ok(draft.petBounds);
+ host.desktop.composer(token,{state:'idle',error:'previous fixture voice error'});await new Promise(resolve=>setTimeout(resolve,100));assert.equal((await host.desktop.inspect()).composerError,'previous fixture voice error');host.desktop.composer(token,{state:'recording'});await new Promise(resolve=>setTimeout(resolve,100));assert.equal((await host.desktop.inspect()).composerError,'','a successful voice retry clears old feedback');host.desktop.composer(token,{state:'idle'});
  assert.ok(Math.abs(draft.bounds.y+draft.petBounds.y-petScreenY)<=1,'expanding the composer preserves pet position');
  host.desktop['send']({type:'fixture-ui',action:'text',text:'未发送的测试草稿'});await new Promise(resolve=>setTimeout(resolve,100));
  host.desktop['send']({type:'fixture-ui',action:'outside'});await new Promise(resolve=>setTimeout(resolve,150));
@@ -56,5 +59,19 @@ try{
   assert.ok(noticeX>=edge.workArea.x+11&&noticeX+edge.noticeBounds.width<=edge.workArea.x+edge.workArea.width-11,'notification remains readable at either pet edge');
   await writeFile('.preview/electron-edge-'+(x?'right':'left')+'.png',Buffer.from(edge.image,'base64'));
  }
+ await host.library.update({desktopPosition:{screen:'display:fixture',x:.25,y:.25}});
+ const publishAudit=async(pose,request)=>{await host.desktop.publish(token,{spriteKey:pet.url,language:'zh-CN',theme:'light',notifications:{activity:{pose},items:pose==='idle'?[]:[{id:'audit',token:'audit-round',title:'Isolated state audit',pose,request}],hidden:0}});await new Promise(resolve=>setTimeout(resolve,100));};
+ host.desktop['send']({type:'fixture-ui',action:'pet-hover',hover:false});host.desktop['send']({type:'fixture-ui',action:'reduced',enabled:true});
+ for(const [pose,row] of Object.entries({idle:0,running:7,review:8,waiting:6,failed:5})){
+  await publishAudit(pose);const displayed=await host.desktop.inspect();assert.equal(displayed.pose,pose);assert.equal(displayed.cell.row,row);assert.equal(displayed.cell.column,0);await new Promise(resolve=>setTimeout(resolve,120));assert.equal((await host.desktop.inspect()).cell.column,0);
+ }
+ host.desktop['send']({type:'fixture-ui',action:'double-click'});await new Promise(resolve=>setTimeout(resolve,100));assert.equal((await host.desktop.inspect()).pose,'failed','double-click must not add a forced jumping override');
+ host.desktop['send']({type:'fixture-ui',action:'pet-hover',hover:true});await new Promise(resolve=>setTimeout(resolve,100));assert.equal((await host.desktop.inspect()).pose,'jumping');host.desktop['send']({type:'fixture-ui',action:'pet-hover',hover:false});await new Promise(resolve=>setTimeout(resolve,100));assert.equal((await host.desktop.inspect()).pose,'failed');
+ const pendingRequest={kind:'approval',key:'audit-request',toolName:'fixture_only_tool'};
+ await publishAudit('waiting',pendingRequest);host.desktop['send']({type:'fixture-ui',action:'request',id:'audit'});await new Promise(resolve=>setTimeout(resolve,100));assert.equal((await host.desktop.inspect()).requestVisible,true);
+ await publishAudit('running');assert.equal((await host.desktop.inspect()).requestVisible,false,'resolved request must disappear');
+ await publishAudit('waiting',pendingRequest);host.desktop['send']({type:'fixture-ui',action:'request',id:'audit'});await new Promise(resolve=>setTimeout(resolve,100));host.desktop['send']({type:'fixture-ui',action:'collapse'});await new Promise(resolve=>setTimeout(resolve,100));assert.equal((await host.desktop.inspect()).requestVisible,false,'fold must close the request panel');host.desktop['send']({type:'fixture-ui',action:'collapse'});
+ host.desktop['send']({type:'fixture-ui',action:'reduced',enabled:false});await publishAudit('running');host.desktop['send']({type:'fixture-ui',action:'reply',id:'audit'});await new Promise(resolve=>setTimeout(resolve,120));assert.ok((await host.desktop.inspect()).cell.row>=9,'follow-up caret must supply gaze while running');
+ console.log('native state matrix, reduced motion, hover/drag priority, double-click, resolved/folded requests and follow-up caret gaze PASS');
  console.log('actual Electron hover controls (2/3 actions), compact idle, top/bottom placement, stable pet anchor, reply preview/editor, outside-click/native blur and retained drafts PASS');
 }finally{host.dispose();await rm(directory,{recursive:true,force:true});}

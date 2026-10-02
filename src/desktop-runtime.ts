@@ -13,7 +13,7 @@ import {createServer,type Server,type Socket} from 'node:net';
 
 type Lease = {owner:string; token:string; stream?:ServerResponse; reconnect?:ReturnType<typeof setTimeout>};
 type Reply = {resolve:(value?:unknown)=>void; reject:(error:Error)=>void; timer:ReturnType<typeof setTimeout>};
-export interface SpeechHost {snapshot():{providers:{id:string;preparation?:{phase:string}}[];selection:{providerId:string}};resolve(request:{audio:Buffer}):unknown;transcribe(spec:unknown,signal:AbortSignal):Promise<{text:string}>;}
+export interface SpeechHost {snapshot():{providers:{id:string;preparation?:{phase:string;message?:string}}[];selection:{providerId:string}};resolve(request:{audio:Buffer}):unknown;transcribe(spec:unknown,signal:AbortSignal):Promise<{text:string}>;}
 export class DesktopRuntime {
   readonly supported: boolean;
   error='';
@@ -234,7 +234,15 @@ export class DesktopRuntime {
     this.authorized(token);const speech=this.options.speech?.();
     if(!speech)throw new Error('请先在 DSH 中启用语音输入插件');
     const state=speech.snapshot(),provider=state.providers.find(provider=>provider.id===state.selection.providerId);
-    if(!provider || (provider.preparation && provider.preparation.phase!=='ready'))throw new Error('语音识别尚未准备完成，请在 DSH 语音插件设置中准备识别模型');
+    if(!provider)throw new Error('当前语音识别器不可用，请在 DSH 语音设置中选择可用的识别器');
+    // Match the official voice UI: cached standby and worker waking both
+    // accept recording; the host owns wake-up, queuing and cancellation.
+    const preparation=provider.preparation;
+    if(preparation&&!['ready','standby','waking'].includes(preparation.phase)){
+      if(preparation.phase==='failed')throw new Error('语音识别准备失败：'+(preparation.message?.slice(0,1000)||'请查看 DSH 语音设置中的错误详情'));
+      if(['checking','loading','downloading','cancelling'].includes(preparation.phase))throw new Error(({checking:'语音识别正在检查本地资源，请稍候',loading:'语音识别正在加载模型，请稍候',downloading:'语音识别正在下载模型，请稍候',cancelling:'语音模型准备正在取消，请稍候'} as Record<string,string>)[preparation.phase]);
+      throw new Error('语音识别模型尚未准备，请在 DSH 语音设置中准备识别模型');
+    }
     return speech;
   }
   async transcribe(token:unknown,encoded:unknown,caller:AbortSignal){

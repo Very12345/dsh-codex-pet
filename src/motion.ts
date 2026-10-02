@@ -22,3 +22,12 @@ export function gazeCell(dx:number,dy:number){
  const direction=Math.round(((Math.atan2(dx,-dy)+Math.PI*2)%(Math.PI*2))/(Math.PI/8))%16;
  return {row:9+Math.floor(direction/8),column:direction%8};
 }
+/** Mirrors the reference player's restart when a look frame is removed. */
+export class MotionClock {
+ private pose?:Pose;private looking=false;private reduced=false;private started=0;
+ sample(pose:Pose,now:number,look:{row:number;column:number}|null=null,reduced=false){
+  const looking=look!==null;
+  if(this.pose!==pose||this.looking!==looking||this.reduced!==reduced){this.started=now;this.pose=pose;this.looking=looking;this.reduced=reduced;}
+  return look?{...look,duration:0}:motionFrameAt(pose,now-this.started,reduced);
+ }
+}

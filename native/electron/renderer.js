@@ -7334,6 +7334,48 @@
     const direction = Math.round((Math.atan2(dx, -dy) + Math.PI * 2) % (Math.PI * 2) / (Math.PI / 8)) % 16;
     return { row: 9 + Math.floor(direction / 8), column: direction % 8 };
   }
+  var MotionClock = class {
+    pose;
+    looking = false;
+    reduced = false;
+    started = 0;
+    sample(pose, now, look = null, reduced = false) {
+      const looking = look !== null;
+      if (this.pose !== pose || this.looking !== looking || this.reduced !== reduced) {
+        this.started = now;
+        this.pose = pose;
+        this.looking = looking;
+        this.reduced = reduced;
+      }
+      return look ? { ...look, duration: 0 } : motionFrameAt(pose, now - this.started, reduced);
+    }
+  };
+
+  // native/electron/caret.ts
+  var layouts = /* @__PURE__ */ new WeakMap();
+  function editorCaret(editor, measure, mirror) {
+    const box = editor.getBoundingClientRect(), style = getComputedStyle(editor), selection = editor.selectionStart ?? editor.value.length, before = editor.value.slice(0, selection);
+    if (editor instanceof HTMLInputElement) {
+      measure.font = style.font;
+      return { x: box.left + Math.max(0, Math.min(box.width, measure.measureText(before).width - editor.scrollLeft)), y: box.top + box.height / 2 };
+    }
+    const properties = ["font", "lineHeight", "letterSpacing", "paddingTop", "paddingBottom", "paddingLeft", "paddingRight", "borderTopWidth", "borderLeftWidth", "boxSizing", "wordBreak", "tabSize"];
+    const suffix = editor.value.slice(selection, selection + 1) || "\u200B", key = [box.width, ...properties.map((property) => style[property]), before, suffix].join("\0");
+    let layout = layouts.get(editor);
+    if (layout?.key !== key) {
+      mirror.style.cssText = "position:fixed;left:0;top:0;visibility:hidden;pointer-events:none;height:auto;white-space:pre-wrap;overflow-wrap:break-word;";
+      for (const property of properties) mirror.style[property] = style[property];
+      mirror.style.width = box.width + "px";
+      mirror.textContent = before;
+      const marker = document.createElement("span");
+      marker.textContent = suffix;
+      mirror.append(marker);
+      const point = marker.getBoundingClientRect();
+      layout = { key, x: point.left, y: point.top, line: parseFloat(style.lineHeight) || 16 };
+      layouts.set(editor, layout);
+    }
+    return { x: box.left + Math.max(0, Math.min(box.width, layout.x - editor.scrollLeft)), y: box.top + Math.max(layout.line / 2, Math.min(box.height, layout.y + layout.line / 2 - editor.scrollTop)) };
+  }
 
   // src/ui-locales.ts
   var en = {
@@ -7487,6 +7529,7 @@
   var import_jsx_runtime2 = __toESM(require_jsx_runtime());
   var bridge = window.petDesktop;
   window.addEventListener("error", () => bridge.emit({ type: "native-error", error: "Floating pet renderer failed" }));
+  var originalMatchMedia = window.matchMedia.bind(window);
   var latest = null;
   var subscribers = /* @__PURE__ */ new Set();
   bridge.subscribe((value) => {
@@ -7579,7 +7622,7 @@
   }
   function App() {
     const [state, setState] = (0, import_react2.useState)(latest), [collapsed, setCollapsed] = (0, import_react2.useState)(false), [compose, setCompose] = (0, import_react2.useState)(false), [draft, setDraft] = (0, import_react2.useState)(""), [files, setFiles] = (0, import_react2.useState)([]), [error, setError] = (0, import_react2.useState)(""), [voice, setVoice] = (0, import_react2.useState)("idle"), [busy, setBusy] = (0, import_react2.useState)(false), [menu, setMenu] = (0, import_react2.useState)(false), [request, setRequest] = (0, import_react2.useState)(null), [transient, setTransient] = (0, import_react2.useState)(null), [hover, setHover] = (0, import_react2.useState)(false), [cell, setCell] = (0, import_react2.useState)({ row: 0, column: 0, duration: 1 });
-    const shell = (0, import_react2.useRef)(null), pet = (0, import_react2.useRef)(null), input = (0, import_react2.useRef)(null), started = (0, import_react2.useRef)(performance.now()), lastPose = (0, import_react2.useRef)(""), dragging = (0, import_react2.useRef)(false), pending = (0, import_react2.useRef)(""), pixels = (0, import_react2.useRef)(null), replies = (0, import_react2.useRef)(/* @__PURE__ */ new Map());
+    const shell = (0, import_react2.useRef)(null), pet = (0, import_react2.useRef)(null), input = (0, import_react2.useRef)(null), clock = (0, import_react2.useRef)(new MotionClock()), dragging = (0, import_react2.useRef)(false), pending = (0, import_react2.useRef)(""), pixels = (0, import_react2.useRef)(null), replies = (0, import_react2.useRef)(/* @__PURE__ */ new Map());
     const [controls, setControls] = (0, import_react2.useState)(false), [above, setAbove] = (0, import_react2.useState)(false), [panelOffsetX, setPanelOffsetX] = (0, import_react2.useState)(0);
     const hoverTimer = (0, import_react2.useRef)(), replyDrafts = (0, import_react2.useRef)(/* @__PURE__ */ new Map());
     const captureId = (0, import_react2.useRef)(null), dragToken = (0, import_react2.useRef)("");
@@ -7597,7 +7640,9 @@
     };
     const endDragRef = (0, import_react2.useRef)(endDrag);
     endDragRef.current = endDrag;
-    const size = state?.config?.size || 120, items = state?.notifications?.items || [], requestedPose = transient ?? (hover ? "jumping" : state?.notifications?.activity?.pose || "idle"), pose = requestedPose in ANIMATIONS ? requestedPose : "idle";
+    const foldRef = (0, import_react2.useRef)(() => {
+    });
+    const size = state?.config?.size || 120, items = state?.notifications?.items || [], requestedPose = transient ?? (hover ? "jumping" : state?.notifications?.activity?.pose || "idle"), pose = Object.hasOwn(ANIMATIONS, requestedPose) ? requestedPose : "idle";
     const chinese = !String(state?.language || "zh").startsWith("en"), t = (zh, en2) => chinese ? zh : en2;
     const action = (command) => {
       const id = crypto.randomUUID();
@@ -7639,7 +7684,7 @@
         } else if (value.type === "composer") {
           setVoice(value.state || "idle");
           if (value.text) setDraft((old) => old + value.text);
-          if (value.error) setError(value.error);
+          setError(typeof value.error === "string" ? value.error : "");
         } else if (value.type === "result") {
           const reply = replies.current.get(value.id);
           if (reply) {
@@ -7657,7 +7702,15 @@
             } else setError(value.error || "");
           }
         } else if (value.type === "fixture-ui") {
-          if (value.action === "drag-loss") pet.current?.dispatchEvent(new PointerEvent("lostpointercapture", { bubbles: true }));
+          if (value.action === "pet-hover") setHover(!!value.hover);
+          else if (value.action === "double-click") pet.current?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+          else if (value.action === "reduced") {
+            window.matchMedia = (query) => {
+              const result = originalMatchMedia(query);
+              if (query === "(prefers-reduced-motion:reduce)") Object.defineProperty(result, "matches", { value: !!value.enabled });
+              return result;
+            };
+          } else if (value.action === "drag-loss") pet.current?.dispatchEvent(new PointerEvent("lostpointercapture", { bubbles: true }));
           else if (value.action === "drag-cancel") pet.current?.dispatchEvent(new PointerEvent("pointercancel", { bubbles: true }));
           else if (value.action === "new") {
             setCompose(true);
@@ -7666,9 +7719,9 @@
           } else if (value.action === "text") setDraft(value.text || "");
           else if (value.action === "outside") pet.current?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 2 }));
           else if (value.action === "hover") setControls(!!value.hover);
-          else if (value.action === "collapse") {
-            setCollapsed(true);
-            setCompose(false);
+          else if (value.action === "collapse") foldRef.current();
+          else if (value.action === "request") {
+            setRequest(latest?.notifications?.items.find((item) => item.id === value.id) || null);
           }
         }
       };
@@ -7692,31 +7745,30 @@
       image.src = "data:image/png;base64," + state.image;
     }, [state?.image]);
     (0, import_react2.useEffect)(() => {
-      if (lastPose.current !== pose) {
-        started.current = performance.now();
-        lastPose.current = pose;
-      }
       let timer;
-      const measure = document.createElement("canvas").getContext("2d");
+      const measure = document.createElement("canvas").getContext("2d"), mirror = document.createElement("div");
+      mirror.setAttribute("aria-hidden", "true");
+      mirror.style.visibility = "hidden";
+      document.body.append(mirror);
       const tick = () => {
         const reduced = matchMedia("(prefers-reduced-motion:reduce)").matches;
-        const frame = motionFrameAt(pose, performance.now() - started.current, reduced);
-        const rect = pet.current?.getBoundingClientRect(), editor = input.current;
+        const rect = pet.current?.getBoundingClientRect(), active = document.activeElement, editor = (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) && active.closest(".composer,.follow-up") ? active : null;
         let gaze = null;
-        if (!reduced && state?.version === 2 && ["idle", "running", "waving"].includes(pose) && !transient && rect && editor && document.hasFocus() && document.activeElement === editor && measure) {
-          const box = editor.getBoundingClientRect(), style = getComputedStyle(editor);
-          measure.font = style.font;
-          const caretX = Math.max(0, Math.min(box.width, measure.measureText(editor.value.slice(0, editor.selectionStart ?? editor.value.length)).width - editor.scrollLeft));
-          gaze = gazeCell(box.left + caretX - (rect.left + rect.width / 2), box.top + box.height / 2 - (rect.top + rect.height / 2));
+        if (state?.version === 2 && ["idle", "running", "waving"].includes(pose) && !transient && rect && editor && document.hasFocus() && measure) {
+          const point = editorCaret(editor, measure, mirror);
+          gaze = gazeCell(point.x - (rect.left + rect.width / 2), point.y - (rect.top + rect.height / 2));
         }
         setCell((old) => {
-          const next = gaze ? { ...frame, ...gaze } : frame;
+          const next = clock.current.sample(pose, performance.now(), gaze, reduced);
           return old.row === next.row && old.column === next.column ? old : next;
         });
         timer = requestAnimationFrame(tick);
       };
       timer = requestAnimationFrame(tick);
-      return () => cancelAnimationFrame(timer);
+      return () => {
+        cancelAnimationFrame(timer);
+        mirror.remove();
+      };
     }, [pose, state?.version, transient]);
     (0, import_react2.useLayoutEffect)(() => {
       if (!shell.current) return;
@@ -7766,6 +7818,10 @@
         requestAnimationFrame(() => input.current?.focus());
       }
     }, [compose]);
+    const liveRequest = request ? items.find((item) => item.id === request.id && item.token === request.token && item.request?.key === request.request?.key) : null;
+    (0, import_react2.useEffect)(() => {
+      if (request && !liveRequest) setRequest(null);
+    }, [request, liveRequest]);
     (0, import_react2.useEffect)(() => {
       const end = () => endDragRef.current(), escape = (event) => {
         if (event.key === "Escape") end();
@@ -7791,7 +7847,7 @@
       return () => document.removeEventListener("pointerdown", outside, true);
     }, [compose]);
     (0, import_react2.useEffect)(() => {
-      window.__petInspect = () => ({ pose, cell, above, controls, panelOffsetX, toolbarAppearance: document.querySelector(".toolbar") ? { width: document.querySelector(".toolbar").getBoundingClientRect().width, height: document.querySelector(".toolbar").getBoundingClientRect().height } : null, replyStyle: document.querySelector(".notice-actions .round") ? { color: getComputedStyle(document.querySelector(".notice-actions .round")).color, background: getComputedStyle(document.querySelector(".notice-actions .round")).backgroundColor, iconWidth: document.querySelector(".notice-actions .round svg")?.getBoundingClientRect().width } : null, rendererDragging: dragging.current, toolbarButtonCount: document.querySelectorAll(".toolbar button").length, collapsed, composerVisible: compose && !collapsed, composerText: draft, noticesVisible: !collapsed && items.length > 0, petBounds: pet.current?.getBoundingClientRect().toJSON(), toolbarBounds: document.querySelector(".toolbar")?.getBoundingClientRect().toJSON(), noticeBounds: document.querySelector(".notice")?.getBoundingClientRect().toJSON(), noticePreview: document.querySelector(".notice-copy")?.textContent, replyVisible: !!document.querySelector(".follow-up") });
+      window.__petInspect = () => ({ pose, cell, above, controls, panelOffsetX, toolbarAppearance: document.querySelector(".toolbar") ? { width: document.querySelector(".toolbar").getBoundingClientRect().width, height: document.querySelector(".toolbar").getBoundingClientRect().height } : null, replyStyle: document.querySelector(".notice-actions .round") ? { color: getComputedStyle(document.querySelector(".notice-actions .round")).color, background: getComputedStyle(document.querySelector(".notice-actions .round")).backgroundColor, iconWidth: document.querySelector(".notice-actions .round svg")?.getBoundingClientRect().width } : null, rendererDragging: dragging.current, toolbarButtonCount: document.querySelectorAll(".toolbar button").length, collapsed, composerVisible: compose && !collapsed, composerText: draft, composerError: document.querySelector(".composer-error")?.textContent || "", noticesVisible: !collapsed && items.length > 0, petBounds: pet.current?.getBoundingClientRect().toJSON(), toolbarBounds: document.querySelector(".toolbar")?.getBoundingClientRect().toJSON(), noticeBounds: document.querySelector(".notice")?.getBoundingClientRect().toJSON(), noticePreview: document.querySelector(".notice-copy")?.textContent, requestVisible: !!document.querySelector(".request"), replyVisible: !!document.querySelector(".follow-up") });
     }, [pose, cell, above, controls, panelOffsetX, collapsed, compose, draft, items.length]);
     const openComposer = () => {
       setCompose(true);
@@ -7805,8 +7861,11 @@
         setVoice("idle");
       }
       setCollapsed(!collapsed);
+      setCompose(false);
+      setRequest(null);
       setMenu(false);
     };
+    foldRef.current = fold;
     const send = () => {
       if (!draft.trim() || busy) return;
       setBusy(true);
@@ -7829,10 +7888,7 @@
           }
         }, onPointerMove: (event) => {
           if (dragging.current && !(event.buttons & 1)) endDrag();
-        }, onPointerUp: endDrag, onPointerCancel: endDrag, onLostPointerCapture: endDrag, onDoubleClick: () => {
-          setTransient("jumping");
-          setTimeout(() => setTransient(null), 2100);
-        }, onContextMenu: (event) => {
+        }, onPointerUp: endDrag, onPointerCancel: endDrag, onLostPointerCapture: endDrag, onContextMenu: (event) => {
           endDrag();
           event.preventDefault();
           setMenu(!menu);
@@ -7881,11 +7937,11 @@
         ] }) : null
       ] }),
       !collapsed && items.length ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "stack", children: items.slice(0, 4).map((item) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(NoticeCard, { item, t, command: answered, showRequest: () => setRequest(item), drafts: replyDrafts.current }, item.id + ":" + item.token)) }) : null,
-      request ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "request", "data-hit": true, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(RequestForm, { item: request, language: state.language, command: async (command) => {
+      liveRequest ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "request", "data-hit": true, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(RequestForm, { item: liveRequest, language: state.language, command: async (command) => {
           await answered(command);
           setRequest(null);
-        } }),
+        } }, liveRequest.request.key + JSON.stringify(liveRequest.request.questions)),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { onClick: () => setRequest(null), children: t("\u5173\u95ED", "Close") })
       ] }) : null
     ] });
