@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { spawn, execFile } from "node:child_process";
 import { BASE } from "./model.ts";
 import { PetLibrary } from "./library.ts";
-import {DesktopRuntime} from './desktop-runtime.ts';
+import {DesktopRuntime,type SpeechHost} from './desktop-runtime.ts';
 export const name = "very12345-codex-pet";
 export const inject = ["webServer"];
 const packageRoot = fileURLToPath(new URL("../", import.meta.url));
@@ -54,7 +54,7 @@ async function body(req: IncomingMessage, limit=16384): Promise<Record<string, u
     return value as Record<string, unknown>;
 }
 export async function createHost(
-    options: { root?: string; dataRoot?: string; skillRoot?: string } = {},
+    options: { root?: string; dataRoot?: string; skillRoot?: string;speech?:()=>SpeechHost|undefined } = {},
 ) {
     const root = options.root ?? packageRoot;
     const library = new PetLibrary(
@@ -63,7 +63,7 @@ export async function createHost(
         options.skillRoot,
     );
     await library.init();
-    const desktop = new DesktopRuntime(library);
+    const desktop = new DesktopRuntime(library,{speech:options.speech});
     let updateHandler:
         | ((req: HostRequest, res: HostResponse) => Promise<void>)
         | undefined;
@@ -116,11 +116,17 @@ export async function createHost(
                 }
                 if(req.method!=='POST'){json(res,405,{error:'方法不支持'});return;}
                 if(!trustedWrite(req)){json(res,403,{error:'请求来源校验失败'});return;}
-                const value=await body(req,path===`${BASE}/api/desktop/snapshot`?32*1024*1024:512*1024);
+                const value=await body(req,path===`${BASE}/api/desktop/snapshot`?32*1024*1024:path===`${BASE}/api/desktop/transcribe`?6*1024*1024:512*1024);
                 if(path===`${BASE}/api/desktop/begin`){json(res,200,await desktop.begin(value.owner));return;}
                 if(path===`${BASE}/api/desktop/snapshot`)await desktop.publish(value.token,value.snapshot);
                 else if(path===`${BASE}/api/desktop/ack`)desktop.acknowledge(value.token,value.id,value.error);
                 else if(path===`${BASE}/api/desktop/end`)desktop.release(value.token);
+                else if(path===`${BASE}/api/desktop/voice-ready`)desktop.voiceReady(value.token);
+                else if(path===`${BASE}/api/desktop/composer`)desktop.composer(value.token,value.value);
+                else if(path===`${BASE}/api/desktop/transcribe`){
+                    const controller=new AbortController();res.once('close',()=>{if(!res.writableEnded)controller.abort();});
+                    json(res,200,await desktop.transcribe(value.token,value.audioBase64,controller.signal));return;
+                }
                 else {json(res,404,{error:'未知操作'});return;}
                 json(res,200,{});return;
             }
@@ -257,7 +263,7 @@ export function apply(ctx: HostContext): void {
         let disposed = false,
             remove: (() => void) | undefined,
             host: Awaited<ReturnType<typeof createHost>> | undefined;
-        void createHost()
+        void createHost({speech:()=>((ctx as unknown as {get(name:string):unknown}).get('speechToText') as SpeechHost|undefined)})
             .then((value) => {
                 host = value;
                 if (disposed) {

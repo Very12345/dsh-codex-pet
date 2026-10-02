@@ -53,8 +53,7 @@ public class PetLayeredForm : Form {
 public class PetNoticeForm : Form {
   public PetNoticeForm(){FormBorderStyle=FormBorderStyle.None;ShowInTaskbar=false;TopMost=true;StartPosition=FormStartPosition.Manual;AutoScaleMode=AutoScaleMode.None;}
   protected override bool ShowWithoutActivation {get{return true;}}
-  protected override CreateParams CreateParams {get{var value=base.CreateParams;value.ExStyle|=0x08000000|0x00000080;return value;}}
-  protected override void WndProc(ref Message message){if(message.Msg==0x0021){message.Result=new IntPtr(3);return;}base.WndProc(ref message);}
+  protected override CreateParams CreateParams {get{var value=base.CreateParams;value.ExStyle|=0x00000080;return value;}}
   public void Round(int radius){using(var path=new GraphicsPath()){path.AddArc(0,0,radius,radius,180,90);path.AddArc(Width-radius,0,radius,radius,270,90);path.AddArc(Width-radius,Height-radius,radius,radius,0,90);path.AddArc(0,Height-radius,radius,radius,90,90);path.CloseFigure();var old=Region;Region=new Region(path);if(old!=null)old.Dispose();}}
 }
 
@@ -81,7 +80,18 @@ public static class DshDesktopPet {
   static readonly object outputLock=new object();
   static readonly ConcurrentQueue<Dictionary<string,object>> incoming=new ConcurrentQueue<Dictionary<string,object>>();
   static PetLayeredForm pet;
-  static PetNoticeForm notices;
+  static PetLayeredForm notices;
+  static PetLayeredForm toolbar;
+  static PetNoticeForm composerWindow;
+  static TextBox composerInput;
+  static Label composerHint;
+  static Label composerPlaceholder;
+  static Button composerSend;
+  static bool composeMode=false,dialogCollapsed=false;
+  static string voiceState="idle",composePendingId;
+  class NoticeHit {public RectangleF Rect;public object Item;public string Action;}
+  static readonly List<NoticeHit> noticeHits=new List<NoticeHit>();
+  static int noticeOffset=0;
   static Bitmap sprites;
   static Dictionary<string,object> config=new Dictionary<string,object>(),animations=new Dictionary<string,object>(),snapshot;
   static string signature="",pose="idle",language="zh";
@@ -98,7 +108,7 @@ public static class DshDesktopPet {
   static readonly Stopwatch clock=Stopwatch.StartNew();
   static string T(string zh,string en){return language.StartsWith("en",StringComparison.OrdinalIgnoreCase)?en:zh;}
   static void Emit(object value){lock(outputLock){Console.WriteLine(json.Serialize(value));Console.Out.Flush();}}
-  static string SendCommand(Dictionary<string,object> value){if(PetJson.Text(value,"type")=="open")FocusDsh();string id=Guid.NewGuid().ToString("N");Emit(PetJson.Data("type","command","id",id,"command",value));return id;}
+  static string SendCommand(Dictionary<string,object> value){if(PetJson.Text(value,"type")=="open" || PetJson.Text(value,"type")=="new-session")FocusDsh();string id=Guid.NewGuid().ToString("N");Emit(PetJson.Data("type","command","id",id,"command",value));return id;}
   static void UpdateConfig(object value){Emit(PetJson.Data("type","config","value",value));}
   static float ScreenScale(Screen screen){try{uint x,y;GetDpiForMonitor(MonitorFromPoint(new Point(screen.WorkingArea.Left+1,screen.WorkingArea.Top+1),2),0,out x,out y);return Math.Max(1,x/96f);}catch{return 1;}}
   static Screen PositionScreen(object position){foreach(var screen in Screen.AllScreens)if(screen.DeviceName==PetJson.Text(position,"screen"))return screen;return Screen.PrimaryScreen;}
@@ -139,33 +149,119 @@ public static class DshDesktopPet {
   static Dictionary<string,object> Command(object item,string type){return PetJson.Data("type",type,"id",PetJson.Text(item,"id"),"token",PetJson.Text(item,"token"));}
   static void LayoutNotices(){
     if(notices==null)return;var area=Screen.FromRectangle(pet.Bounds).WorkingArea;
-    int left=pet.Left-notices.Width-(int)(12*scale);if(left<area.Left)left=pet.Right+(int)(12*scale);
-    notices.Location=new Point(Math.Max(area.Left,Math.Min(area.Right-notices.Width,left)),Math.Max(area.Top,Math.Min(area.Bottom-notices.Height,pet.Bottom-notices.Height)));
+    toolbar.Size=new Size((int)(142*scale),(int)(48*scale));
+    int count=PetJson.Array(PetJson.Get(PetJson.Get(snapshot,"notifications"),"items")).Length;
+    bool hasNotices=!dialogCollapsed && !composeMode && showNotices && count>0;
+    bool hasComposer=composeMode && !dialogCollapsed;
+    if(hasNotices)notices.Size=new Size(Math.Min((int)(320*scale),area.Width),Math.Min(area.Height,(int)((Math.Min(3,count)*70+(count>3?20:2))*scale)));
+    int contentWidth=hasComposer?(int)(320*scale):hasNotices?notices.Width:toolbar.Width;
+    int contentHeight=hasComposer?(int)(112*scale):hasNotices?notices.Height:0;
+    int width=Math.Max(pet.Width,contentWidth),height=pet.Height+(int)(8*scale)+toolbar.Height+(contentHeight>0?contentHeight+(int)(6*scale):0);
+    int minLeft=area.Left+(width-pet.Width)/2,maxLeft=area.Right-(width+pet.Width)/2;
+    pet.Left=Math.Max(minLeft,Math.Min(maxLeft,pet.Left));pet.Top=Math.Max(area.Top,Math.Min(area.Bottom-height,pet.Top));
+    int center=pet.Left+pet.Width/2;
+    toolbar.Location=new Point(center-toolbar.Width/2,pet.Bottom+(int)(4*scale));
+    notices.Location=new Point(center-notices.Width/2,toolbar.Bottom+(int)(6*scale));
+    if(composerWindow!=null){composerWindow.Size=new Size((int)(320*scale),(int)(112*scale));composerWindow.Location=new Point(center-composerWindow.Width/2,toolbar.Bottom+(int)(6*scale));composerWindow.Round((int)(30*scale));SizeComposer();}
+    toolbar.PaintFrame();pet.PaintFrame();
+    notices.PaintFrame();
+  }
+  static Bitmap RenderToolbar(){
+    var bitmap=new Bitmap(Math.Max(1,toolbar.Width),Math.Max(1,toolbar.Height),PixelFormat.Format32bppPArgb);float s=scale;
+    bool dark=PetJson.Text(snapshot,"theme")=="dark";Color fill=dark?Color.FromArgb(39,42,49):Color.FromArgb(252,253,255),ink=dark?Color.FromArgb(225,231,239):Color.FromArgb(46,53,63);
+    using(var g=Graphics.FromImage(bitmap)){
+      g.Clear(Color.Transparent);g.SmoothingMode=SmoothingMode.AntiAlias;
+      var rect=new RectangleF(7*s,4*s,toolbar.Width-14*s,38*s);
+      for(int layer=3;layer>=1;layer--)using(var shape=RoundPath(new RectangleF(rect.X-layer*s,rect.Y+2*s,rect.Width+2*layer*s,rect.Height+layer*s),20*s))using(var brush=new SolidBrush(Color.FromArgb(6,0,0,0)))g.FillPath(brush,shape);
+      using(var path=RoundPath(rect,20*s))using(var brush=new SolidBrush(fill))g.FillPath(brush,path);
+      using(var pen=new Pen(dark?Color.FromArgb(68,75,86):Color.FromArgb(227,231,237),s)){g.DrawLine(pen,50*s,12*s,50*s,34*s);g.DrawLine(pen,92*s,12*s,92*s,34*s);}
+      using(var pen=new Pen(ink,1.6f*s)){pen.StartCap=LineCap.Round;pen.EndCap=LineCap.Round;
+        g.DrawLine(pen,21*s,21*s,21*s,29*s);g.DrawArc(pen,21*s,27*s,5*s,5*s,90,90);g.DrawLine(pen,23.5f*s,32*s,33*s,32*s);g.DrawArc(pen,31*s,27*s,5*s,5*s,0,90);g.DrawLine(pen,36*s,29*s,36*s,25*s);g.DrawLine(pen,23.5f*s,16*s,29*s,16*s);g.DrawArc(pen,21*s,16*s,5*s,5*s,180,90);g.DrawLine(pen,27*s,27*s,38*s,16*s);g.DrawLine(pen,27*s,27*s,26*s,31*s);g.DrawLine(pen,26*s,31*s,30*s,30*s);
+        for(int bar=0;bar<4;bar++){float h=(bar==0||bar==3?6:bar==1?15:11)*s;g.DrawLine(pen,(64+bar*4)*s,23*s-h/2,(64+bar*4)*s,23*s+h/2);}
+        if(dialogCollapsed){g.DrawArc(pen,107*s,17*s,12*s,12*s,180,180);g.DrawLine(pen,107*s,23*s,105*s,28*s);g.DrawLine(pen,119*s,23*s,121*s,28*s);g.DrawLine(pen,105*s,28*s,121*s,28*s);g.DrawArc(pen,110*s,28*s,6*s,5*s,0,180);}
+        else{g.DrawLine(pen,107*s,21*s,113*s,27*s);g.DrawLine(pen,113*s,27*s,119*s,21*s);}
+      }
+      int count=PetJson.Array(PetJson.Get(PetJson.Get(snapshot,"notifications"),"items")).Length;
+      if(dialogCollapsed && count>0){var badge=new RectangleF(118*s,8*s,15*s,15*s);using(var brush=new SolidBrush(Color.FromArgb(38,109,224)))g.FillEllipse(brush,badge);using(var brush=new SolidBrush(Color.White))using(var format=new StringFormat{Alignment=StringAlignment.Center,LineAlignment=StringAlignment.Center})g.DrawString(count>99?"99+":count.ToString(),TextFont(9,true),brush,badge,format);}
+      if(voiceState=="recording")using(var brush=new SolidBrush(Color.FromArgb(220,60,65)))g.FillEllipse(brush,77*s,10*s,5*s,5*s);
+    }return bitmap;
+  }
+  static GraphicsPath RoundPath(RectangleF rect,float radius){var path=new GraphicsPath();float d=Math.Min(radius*2,Math.Min(rect.Width,rect.Height));path.AddArc(rect.X,rect.Y,d,d,180,90);path.AddArc(rect.Right-d,rect.Y,d,d,270,90);path.AddArc(rect.Right-d,rect.Bottom-d,d,d,0,90);path.AddArc(rect.X,rect.Bottom-d,d,d,90,90);path.CloseFigure();return path;}
+  static void NoticeIcon(Graphics g,string kind,RectangleF bounds,Color color){
+    float s=scale;float x=bounds.X+bounds.Width/2,y=bounds.Y+bounds.Height/2;
+    using(var pen=new Pen(color,1.5f*s)){pen.StartCap=LineCap.Round;pen.EndCap=LineCap.Round;
+      if(kind=="dismiss"){g.DrawLine(pen,x-3*s,y-3*s,x+3*s,y+3*s);g.DrawLine(pen,x+3*s,y-3*s,x-3*s,y+3*s);}
+      else if(kind=="stop"){using(var brush=new SolidBrush(color))using(var shape=RoundPath(new RectangleF(x-3.5f*s,y-3.5f*s,7*s,7*s),1.2f*s))g.FillPath(brush,shape);}
+      else if(kind=="request"){g.DrawEllipse(pen,x-5*s,y-5*s,10*s,10*s);g.DrawArc(pen,x-2*s,y-3.5f*s,4*s,4*s,185,250);g.DrawLine(pen,x,y+.8f*s,x,y+1.6f*s);using(var brush=new SolidBrush(color))g.FillEllipse(brush,x-.6f*s,y+3*s,1.2f*s,1.2f*s);}
+      else{g.DrawArc(pen,x-4.5f*s,y-3*s,8*s,8*s,10,280);g.DrawLine(pen,x-4*s,y-3*s,x-.5f*s,y-3*s);g.DrawLine(pen,x-4*s,y-3*s,x-4*s,y+.5f*s);}
+    }
+  }
+  static Bitmap RenderNotices(){
+    var bitmap=new Bitmap(Math.Max(1,notices.Width),Math.Max(1,notices.Height),PixelFormat.Format32bppPArgb);
+    noticeHits.Clear();var items=PetJson.Array(PetJson.Get(PetJson.Get(snapshot,"notifications"),"items"));
+    bool dark=PetJson.Text(snapshot,"theme")=="dark";Color fill=dark?Color.FromArgb(39,42,49):Color.FromArgb(252,253,255),ink=dark?Color.FromArgb(240,243,249):Color.FromArgb(37,43,54),muted=dark?Color.FromArgb(157,167,184):Color.FromArgb(112,123,140),line=dark?Color.FromArgb(78,85,98):Color.FromArgb(216,223,233);
+    float s=scale;int visible=Math.Min(3,items.Length);
+    using(var g=Graphics.FromImage(bitmap)){
+      g.Clear(Color.Transparent);g.SmoothingMode=SmoothingMode.AntiAlias;g.TextRenderingHint=System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+      for(int i=0;i<visible;i++){
+        var item=items[Math.Min(items.Length-1,noticeOffset+i)];float top=8*s+i*70*s;
+        var capsule=new RectangleF(8*s,top,notices.Width-16*s,56*s);
+        for(int layer=3;layer>=1;layer--)using(var shadow=RoundPath(new RectangleF(capsule.X-layer*s,capsule.Y+(3-layer)*s,capsule.Width+layer*2*s,capsule.Height+layer*2*s),28*s))using(var brush=new SolidBrush(Color.FromArgb(dark?10:5,0,0,0)))g.FillPath(brush,shadow);
+        using(var path=RoundPath(capsule,28*s))using(var brush=new SolidBrush(fill))using(var pen=new Pen(line,s)){g.FillPath(brush,path);g.DrawPath(pen,path);}
+        float textLeft=capsule.Left+20*s,right=capsule.Right-10*s;
+        string state=PetJson.Text(item,"pose");bool waiting=PetJson.Get(item,"request")!=null;
+        string status=state=="running"?T("正在工作","Working"):state=="waiting"?T("等待你处理","Needs your attention"):state=="failed"?T("任务出错","Task failed"):T("已完成","Completed");
+        int actions=state=="running"?2:1;float textWidth=capsule.Width-40*s-actions*27*s;
+        using(var format=new StringFormat{Trimming=StringTrimming.EllipsisCharacter,FormatFlags=StringFormatFlags.NoWrap}){
+          using(var brush=new SolidBrush(ink))g.DrawString(PetJson.Text(item,"title"),TextFont(13,true),brush,new RectangleF(textLeft,top+9*s,textWidth,19*s),format);
+          using(var brush=new SolidBrush(muted))g.DrawString(status,TextFont(12,false),brush,new RectangleF(textLeft,top+29*s,textWidth,17*s),format);
+        }
+        noticeHits.Add(new NoticeHit{Rect=new RectangleF(textLeft,top+5*s,textWidth,46*s),Item=item,Action="open"});
+        Action<string,float> icon=(kind,x)=>{var hit=new RectangleF(x,top+15*s,25*s,25*s);using(var brush=new SolidBrush(dark?Color.FromArgb(54,59,68):Color.FromArgb(239,243,249)))g.FillEllipse(brush,hit);NoticeIcon(g,kind,hit,muted);noticeHits.Add(new NoticeHit{Rect=hit,Item=item,Action=kind});};
+        if(state=="running"){icon("stop",right-25*s);right-=29*s;}
+        icon(waiting?"request":"open",right-25*s);
+        var close=new RectangleF(capsule.Left-3*s,top-4*s,18*s,18*s);
+        using(var brush=new SolidBrush(fill))using(var pen=new Pen(line,s)){g.FillEllipse(brush,close);g.DrawEllipse(pen,close);}NoticeIcon(g,"dismiss",close,muted);noticeHits.Add(new NoticeHit{Rect=close,Item=item,Action="dismiss"});
+      }
+      if(items.Length>visible)using(var brush=new SolidBrush(muted))using(var format=new StringFormat{Alignment=StringAlignment.Center})g.DrawString(T("滚轮查看 · ","Scroll · ")+(noticeOffset+1)+"–"+Math.Min(items.Length,noticeOffset+visible)+" / "+items.Length,TextFont(10,false),brush,new RectangleF(8*s,visible*70*s,notices.Width-16*s,20*s),format);
+    }return bitmap;
   }
   static void BuildNotices(){
-    while(notices.Controls.Count>0)notices.Controls[0].Dispose();
     var items=PetJson.Array(PetJson.Get(PetJson.Get(snapshot,"notifications"),"items"));
-    if(items.Length==0 || !showNotices || !PetJson.Bool(config,"visible",true)){notices.Hide();return;}
-    int width=(int)(300*scale),rowHeight=(int)(74*scale),gap=(int)(8*scale);
+    if(items.Length==0 || !showNotices || dialogCollapsed || composeMode || !PetJson.Bool(config,"visible",true)){notices.Hide();LayoutNotices();return;}
+    noticeOffset=Math.Max(0,Math.Min(noticeOffset,items.Length-Math.Min(3,items.Length)));
     var area=Screen.FromRectangle(pet.Bounds).WorkingArea;
-    notices.Size=new Size(Math.Min(width,area.Width),Math.Min((int)(420*scale),Math.Min(area.Height,rowHeight*items.Length+gap*2)));
-    notices.BackColor=Color.FromArgb(246,248,251);notices.Round((int)(24*scale));
-    var flow=new FlowLayoutPanel{Dock=DockStyle.Fill,AutoScroll=true,FlowDirection=FlowDirection.TopDown,WrapContents=false,Padding=new Padding(gap),BackColor=notices.BackColor};notices.Controls.Add(flow);
-    foreach(var item in items){
-      var current=item;var card=new Panel{Width=notices.Width-gap*2-(int)(20*scale),Height=rowHeight-gap,BackColor=Color.White,Margin=new Padding(0,0,0,gap)};
-      var title=TextLabel(PetJson.Text(item,"title"),(int)(10*scale),(int)(7*scale),card.Width-(int)(92*scale),(int)(22*scale),true);
-      string state=PetJson.Text(item,"pose");string label=state=="running"?T("正在工作","Working"):state=="waiting"?T("等待你处理","Needs your attention"):state=="failed"?T("任务出错","Task failed"):T("已完成","Completed");
-      var status=TextLabel(label,(int)(10*scale),(int)(32*scale),card.Width-(int)(92*scale),(int)(20*scale),false);status.ForeColor=Color.FromArgb(110,117,130);
-      title.Cursor=Cursors.Hand;status.Cursor=Cursors.Hand;title.Click+=(sender,e)=>SendCommand(Command(current,"open"));status.Click+=(sender,e)=>SendCommand(Command(current,"open"));
-      card.Controls.Add(title);card.Controls.Add(status);
-      int right=card.Width-(int)(31*scale);
-      card.Controls.Add(Button("×",right,(int)(3*scale),(int)(28*scale),()=>SendCommand(Command(current,"dismiss"))));
-      if(PetJson.Get(item,"request")!=null)card.Controls.Add(Button("?",right-(int)(30*scale),(int)(28*scale),(int)(28*scale),()=>Request(current)));
-      else card.Controls.Add(Button("↗",right-(int)(30*scale),(int)(28*scale),(int)(28*scale),()=>SendCommand(Command(current,"open"))));
-      if(state=="running")card.Controls.Add(Button("■",right,(int)(28*scale),(int)(28*scale),()=>SendCommand(Command(current,"stop"))));
-      flow.Controls.Add(card);
-    }
+    notices.Size=new Size(Math.Min((int)(320*scale),area.Width),Math.Min(area.Height,(int)((Math.Min(3,items.Length)*70+(items.Length>3?20:2))*scale)));
     LayoutNotices();notices.Show();
+    notices.PaintFrame();
+  }
+  static void SizeComposer(){
+    if(composerInput==null)return;composerInput.Bounds=new Rectangle((int)(14*scale),(int)(12*scale),(int)(290*scale),(int)(55*scale));
+    bool dark=PetJson.Text(snapshot,"theme")=="dark";Color fill=dark?Color.FromArgb(39,42,49):Color.White;composerWindow.BackColor=fill;composerInput.BackColor=fill;composerInput.ForeColor=dark?Color.White:Color.FromArgb(37,43,54);composerPlaceholder.BackColor=fill;
+    composerHint.Bounds=new Rectangle((int)(14*scale),(int)(76*scale),(int)(245*scale),(int)(26*scale));
+    composerPlaceholder.Bounds=new Rectangle((int)(14*scale),(int)(13*scale),(int)(250*scale),(int)(28*scale));
+    composerSend.Bounds=new Rectangle((int)(273*scale),(int)(73*scale),(int)(32*scale),(int)(32*scale));
+    using(var shape=new GraphicsPath()){shape.AddEllipse(0,0,composerSend.Width,composerSend.Height);var old=composerSend.Region;composerSend.Region=new Region(shape);if(old!=null)old.Dispose();}
+  }
+  static void CancelVoice(){if(voiceState!="idle")SendCommand(PetJson.Data("type","voice-cancel"));voiceState="idle";}
+  static void OpenComposer(bool clear){
+    CancelVoice();composeMode=true;dialogCollapsed=false;
+    if(composerWindow==null){
+      composerWindow=new PetNoticeForm{BackColor=Color.White,Text="DSH · "+T("新对话","New conversation")};
+      composerInput=new TextBox{Multiline=true,MaxLength=10000,BorderStyle=BorderStyle.None,Font=TextFont(14,false),BackColor=Color.White,ScrollBars=ScrollBars.Vertical};
+      composerHint=new Label{Text=T("开始新聊天","Start a new chat"),Font=TextFont(11,false),ForeColor=Color.FromArgb(144,152,165)};
+      composerPlaceholder=new Label{Text=T("开始新聊天","Start a new chat"),Font=TextFont(14,false),ForeColor=Color.FromArgb(178,184,194),BackColor=Color.White};composerPlaceholder.Click+=(sender,e)=>composerInput.Focus();
+      composerSend=Button("↑",0,0,(int)(32*scale),()=>{
+        if(string.IsNullOrWhiteSpace(composerInput.Text) || voiceState=="processing")return;
+        CancelVoice();composerSend.Enabled=false;composePendingId=SendCommand(PetJson.Data("type","send-message","text",composerInput.Text));
+      });composerSend.BackColor=Color.FromArgb(80,130,224);composerSend.ForeColor=Color.White;
+      composerSend.Enabled=false;
+      composerInput.TextChanged+=(sender,e)=>{composerSend.Enabled=voiceState!="processing" && composerInput.Text.Trim().Length>0;composerPlaceholder.Visible=composerInput.Text.Length==0;};
+      composerInput.KeyDown+=(sender,e)=>{if(e.KeyCode==Keys.Enter && e.Control){e.SuppressKeyPress=true;composerSend.PerformClick();}};
+      composerWindow.Controls.Add(composerInput);composerWindow.Controls.Add(composerHint);composerWindow.Controls.Add(composerSend);composerWindow.Controls.Add(composerPlaceholder);composerPlaceholder.BringToFront();
+    }
+    if(clear)composerInput.Clear();composerHint.Text=T("开始新聊天 · Ctrl+Enter 发送","New chat · Ctrl+Enter to send");
+    LayoutNotices();notices.Hide();composerWindow.Show();composerWindow.Activate();composerInput.Focus();
   }
   static void Request(object item){
     if(requestWindow!=null && !requestWindow.IsDisposed){requestWindow.Activate();return;}
@@ -209,34 +305,49 @@ public static class DshDesktopPet {
     menu.Items.Add(showNotices?T("收起任务通知","Hide task notifications"):T("显示任务通知","Show task notifications"),null,(sender,e)=>{showNotices=!showNotices;BuildNotices();});
     menu.Items.Add(new ToolStripSeparator());menu.Items.Add(T("宠物设置","Pet settings"),null,(sender,e)=>{FocusDsh();Emit(PetJson.Data("type","settings"));});
     menu.Items.Add(T("重置位置","Reset position"),null,(sender,e)=>{Position(null);UpdateConfig(PetJson.Data("desktopPosition",null));});
-    menu.Items.Add(T("收起宠物","Hide companion"),null,(sender,e)=>{pet.Hide();notices.Hide();UpdateConfig(PetJson.Data("visible",false));});
+    menu.Items.Add(T("收起宠物","Hide companion"),null,(sender,e)=>{CancelVoice();pet.Hide();notices.Hide();toolbar.Hide();if(composerWindow!=null)composerWindow.Hide();UpdateConfig(PetJson.Data("visible",false));});
     menu.Items.Add(T("返回页内显示","Show inside DSH"),null,(sender,e)=>UpdateConfig(PetJson.Data("desktop",false)));
     menu.Closed+=(sender,e)=>menu.Dispose();menu.Show(Cursor.Position);
   }
   static void Handle(Dictionary<string,object> message){
     var type=PetJson.Text(message,"type");
     if(type=="close"){closing=true;pet.Close();return;}
+    if(type=="fixture-ui" && Environment.GetEnvironmentVariable("DSH_PET_NATIVE_TEST")=="1"){
+      string action=PetJson.Text(message,"action");
+      if(action=="new")OpenComposer(true);
+      else if(action=="text" && composerInput!=null)composerInput.Text=PetJson.Text(message,"text");
+      else if(action=="send" && composerSend!=null)composerSend.PerformClick();
+      else if(action=="collapse"){dialogCollapsed=true;CancelVoice();if(composerWindow!=null)composerWindow.Hide();BuildNotices();LayoutNotices();toolbar.PaintFrame();}
+      return;
+    }
     if(type=="snapshot"){
       string oldPosition=json.Serialize(PetJson.Get(config,"desktopPosition"));int oldSize=sizeDip;string oldLanguage=language;
       snapshot=message;config=PetJson.Obj(PetJson.Get(message,"config"));animations=PetJson.Obj(PetJson.Get(message,"animations"));language=PetJson.Text(message,"language");version=(int)PetJson.Number(message,"version",1);sizeDip=(int)PetJson.Number(config,"size",120);
       string image=PetJson.Text(message,"image");if(image!=""){using(var input=new MemoryStream(Convert.FromBase64String(image)))using(var loaded=Image.FromStream(input)){var next=new Bitmap(loaded);var old=sprites;sprites=next;imageRevision++;if(old!=null)old.Dispose();}}
       if(oldSize!=sizeDip || oldPosition!=json.Serialize(PetJson.Get(config,"desktopPosition")) || !pet.Visible)Position(PetJson.Get(config,"desktopPosition"));
-      string nextSignature=json.Serialize(PetJson.Get(PetJson.Get(message,"notifications"),"items"))+language+sizeDip;
+      string nextSignature=json.Serialize(PetJson.Get(PetJson.Get(message,"notifications"),"items"))+language+sizeDip+PetJson.Text(message,"theme");
       if(signature!=nextSignature || oldLanguage!=language){signature=nextSignature;BuildNotices();}
-      if(PetJson.Bool(config,"visible",true) && sprites!=null){pet.Show();pet.PaintFrame();if(showNotices && PetJson.Array(PetJson.Get(PetJson.Get(message,"notifications"),"items")).Length>0)notices.Show();}
-      else{pet.Hide();notices.Hide();}
+      if(PetJson.Bool(config,"visible",true) && sprites!=null){pet.Show();toolbar.Show();LayoutNotices();pet.PaintFrame();toolbar.PaintFrame();if(!dialogCollapsed && !composeMode && showNotices && PetJson.Array(PetJson.Get(PetJson.Get(message,"notifications"),"items")).Length>0){notices.Show();notices.PaintFrame();}if(composerWindow!=null && composeMode && !dialogCollapsed)composerWindow.Show();}
+      else{pet.Hide();notices.Hide();toolbar.Hide();if(composerWindow!=null)composerWindow.Hide();CancelVoice();}
       Emit(PetJson.Data("type","shown","id",PetJson.Text(message,"id")));return;
     }
     if(type=="result"){
+      if(PetJson.Text(message,"id")==composePendingId){composerSend.Enabled=true;if(PetJson.Bool(message,"ok",false)){composerInput.Clear();composeMode=false;composerWindow.Hide();BuildNotices();}else composerHint.Text=PetJson.Text(message,"error");return;}
       if(PetJson.Text(message,"id")!=requestPendingId)return;
       if(PetJson.Bool(message,"ok",false)){if(requestWindow!=null)requestWindow.Close();requestPendingId=null;}
       else if(requestError!=null)requestError.Text=PetJson.Text(message,"error");
       return;
     }
+    if(type=="composer"){
+      voiceState=PetJson.Text(message,"state");
+      if(composerInput!=null){string text=PetJson.Text(message,"text");if(text!="" && composeMode && !dialogCollapsed)composerInput.SelectedText=text;composerHint.Text=PetJson.Text(message,"error")!=""?PetJson.Text(message,"error"):voiceState=="recording"?T("正在录音 · 再点语音结束","Recording · click voice again to finish"):voiceState=="processing"?T("正在转写…","Transcribing…"):T("Ctrl+Enter 发送","Ctrl+Enter to send");composerSend.Enabled=voiceState!="processing" && composerInput.Text.Trim().Length>0;}
+      toolbar.PaintFrame();return;
+    }
     if(type=="inspect"){
       string image="";using(var bitmap=Render())using(var buffer=new MemoryStream()){bitmap.Save(buffer,ImageFormat.Png);image=Convert.ToBase64String(buffer.ToArray());}
       var area=Screen.FromRectangle(pet.Bounds).WorkingArea;
-      Emit(PetJson.Data("type","inspection","id",PetJson.Text(message,"id"),"pid",Process.GetCurrentProcess().Id,"visible",pet.Visible,"topmost",pet.TopMost,"handle",pet.Handle.ToInt64(),"foreground",GetForegroundWindow().ToInt64(),"styles",GetWindowLong(pet.Handle,-20),"bounds",PetJson.Data("x",pet.Left,"y",pet.Top,"width",pet.Width,"height",pet.Height),"workArea",PetJson.Data("x",area.X,"y",area.Y,"width",area.Width,"height",area.Height),"scale",scale,"pose",pose,"noticesVisible",notices.Visible,"image",image));
+      string noticeImage="",toolbarImage="";using(var bitmap=RenderNotices())using(var buffer=new MemoryStream()){bitmap.Save(buffer,ImageFormat.Png);noticeImage=Convert.ToBase64String(buffer.ToArray());}using(var bitmap=RenderToolbar())using(var buffer=new MemoryStream()){bitmap.Save(buffer,ImageFormat.Png);toolbarImage=Convert.ToBase64String(buffer.ToArray());}
+      Emit(PetJson.Data("type","inspection","id",PetJson.Text(message,"id"),"pid",Process.GetCurrentProcess().Id,"visible",pet.Visible,"topmost",pet.TopMost,"handle",pet.Handle.ToInt64(),"foreground",GetForegroundWindow().ToInt64(),"styles",GetWindowLong(pet.Handle,-20),"bounds",PetJson.Data("x",pet.Left,"y",pet.Top,"width",pet.Width,"height",pet.Height),"workArea",PetJson.Data("x",area.X,"y",area.Y,"width",area.Width,"height",area.Height),"scale",scale,"pose",pose,"collapsed",dialogCollapsed,"composerVisible",composerWindow!=null && composerWindow.Visible,"composerText",composerInput!=null?composerInput.Text:"","noticesVisible",notices.Visible,"noticeBounds",PetJson.Data("x",notices.Left,"y",notices.Top,"width",notices.Width,"height",notices.Height),"toolbarBounds",PetJson.Data("x",toolbar.Left,"y",toolbar.Top,"width",toolbar.Width,"height",toolbar.Height),"toolbarImage",toolbarImage,"noticeImage",noticeImage,"image",image));
     }
   }
   public static void Run(int parentPid){
@@ -244,12 +355,17 @@ public static class DshDesktopPet {
     Console.InputEncoding=new UTF8Encoding(false);Console.OutputEncoding=new UTF8Encoding(false);parent=parentPid;
     try{ownerProcess=Process.GetProcessById(parentPid);ownerExecutable=ownerProcess.MainModule.FileName;}catch{return;}
     Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);
-    pet=new PetLayeredForm();notices=new PetNoticeForm();pet.Draw=Render;Position(null);
+    pet=new PetLayeredForm();notices=new PetLayeredForm();toolbar=new PetLayeredForm();pet.Draw=Render;notices.Draw=RenderNotices;toolbar.Draw=RenderToolbar;Position(null);
+    toolbar.MouseUp+=(sender,e)=>{if(e.Button!=MouseButtons.Left)return;float x=e.X/scale;if(x<50)OpenComposer(true);else if(x<92){if(!composeMode)OpenComposer(false);SendCommand(PetJson.Data("type","voice-toggle"));}else{dialogCollapsed=!dialogCollapsed;if(dialogCollapsed){CancelVoice();if(composerWindow!=null)composerWindow.Hide();}else if(composeMode && composerWindow!=null)composerWindow.Show();BuildNotices();LayoutNotices();toolbar.PaintFrame();}};
+    var tips=new ToolTip{InitialDelay=350,ShowAlways=true};int toolbarZone=-1;
+    toolbar.MouseMove+=(sender,e)=>{int zone=e.X/scale<50?0:e.X/scale<92?1:2;if(zone==toolbarZone)return;toolbarZone=zone;tips.SetToolTip(toolbar,zone==0?T("新对话","New conversation"):zone==1?T("语音","Voice input"):T("折叠/展开对话","Collapse/expand conversations"));};
+    notices.MouseUp+=(sender,e)=>{if(e.Button!=MouseButtons.Left)return;for(int i=noticeHits.Count-1;i>=0;i--)if(noticeHits[i].Rect.Contains(e.Location)){var hit=noticeHits[i];if(hit.Action=="request")Request(hit.Item);else SendCommand(Command(hit.Item,hit.Action));break;}};
+    notices.MouseWheel+=(sender,e)=>{var items=PetJson.Array(PetJson.Get(PetJson.Get(snapshot,"notifications"),"items"));noticeOffset=Math.Max(0,Math.Min(Math.Max(0,items.Length-3),noticeOffset+(e.Delta<0?1:-1)));notices.PaintFrame();};
     pet.MouseDown+=(sender,e)=>{if(e.Button==MouseButtons.Left){downMouse=Cursor.Position;downWindow=pet.Location;moving=true;pet.Capture=true;}};
     pet.MouseMove+=(sender,e)=>{if(moving){var point=Cursor.Position;pet.Location=new Point(downWindow.X+point.X-downMouse.X,downWindow.Y+point.Y-downMouse.Y);Clamp();float nextScale=ScreenScale(Screen.FromRectangle(pet.Bounds));if(nextScale!=scale){scale=nextScale;SetSize();signature="";BuildNotices();}LayoutNotices();pet.PaintFrame();}};
     pet.MouseUp+=(sender,e)=>{if(moving){moving=false;pet.Capture=false;SavePosition();}if(e.Button==MouseButtons.Right)Menu();};
     pet.MouseDoubleClick+=(sender,e)=>{if(e.Button==MouseButtons.Left)jumpUntil=clock.ElapsedMilliseconds+700;};
-    pet.FormClosed+=(sender,e)=>{closing=true;if(notices!=null)notices.Close();if(requestWindow!=null)requestWindow.Close();Application.ExitThread();};
+    pet.FormClosed+=(sender,e)=>{closing=true;if(notices!=null)notices.Close();if(toolbar!=null)toolbar.Close();if(composerWindow!=null)composerWindow.Close();if(requestWindow!=null)requestWindow.Close();Application.ExitThread();};
     var timer=new System.Windows.Forms.Timer{Interval=33};int ticks=0;
     timer.Tick+=(sender,e)=>{
       Dictionary<string,object> message;int count=0;
@@ -262,8 +378,9 @@ public static class DshDesktopPet {
     SystemEvents.DisplaySettingsChanged+=displays;
     pet.CreateControl();var handle=pet.Handle;timer.Start();Emit(PetJson.Data("type","ready","pid",Process.GetCurrentProcess().Id));
     Application.Run(new ApplicationContext());timer.Stop();timer.Dispose();
+    tips.Dispose();
     SystemEvents.DisplaySettingsChanged-=displays;ownerProcess.Dispose();
-    if(sprites!=null)sprites.Dispose();pet.Dispose();notices.Dispose();
+    if(sprites!=null)sprites.Dispose();pet.Dispose();notices.Dispose();toolbar.Dispose();
     foreach(var font in fonts.Values)font.Dispose();
   }
 }

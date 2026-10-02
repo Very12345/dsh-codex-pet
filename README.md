@@ -2,9 +2,12 @@
 
 [简体中文](README.zh-CN.md)
 
-An independent fork of [MichengAI/dsh-codex-pet](https://github.com/MichengAI/dsh-codex-pet), based on upstream 0.1.12. Fork version **0.2.0** adds a native Windows floating companion outside the DSH window.
+An independent fork of [MichengAI/dsh-codex-pet](https://github.com/MichengAI/dsh-codex-pet), based on upstream 0.1.12. Fork version **0.2.1** adds a native Windows floating companion outside the DSH window.
 
 ## Features
+
+- Centered vertical composition: pet, three-button toolbar, then transparent rounded notification capsules. New conversation opens a floating draft; voice fills recognized text into it; collapse changes to a notification bell with a count.
+- Sending a draft or pressing Ctrl+Enter creates and prompts a native DSH session. Voice uses the host-configured speech recognizer; enable and prepare DSH voice input first. Transcripts require an explicit send.
 
 - Transparent, always-on-top pet, visible while DSH is minimized or another app is active. Startup and state updates do not steal focus.
 - Drag to move, double-click to jump, right-click for settings, task notifications, position reset, hiding or returning to page display. Transparent pixels pass mouse input through.
@@ -51,7 +54,7 @@ npm pack --dry-run --ignore-scripts
 
 Windows browser tests default to Edge (`DSH_PET_BROWSER_CHANNEL` overrides it). Fixtures use temporary data and fake sessions, never real user approvals. Native screenshots capture only the helper's own sprite under ignored `.preview/`.
 
-Validation includes 48 automated tests, page notifications and localization, native transparency/topmost/non-activation, 200% DPI, hidden-page continuity, approval transport, page fallback and process cleanup. Native macOS/Linux and all older desktop host combinations are unverified.
+Validation includes 52 automated tests, page notifications and localization, native transparency/topmost/non-activation, 200% DPI, hidden-page continuity, approval transport, page fallback and process cleanup. Native macOS/Linux and all older desktop host combinations are unverified.
 
 Actions are disabled for this fork. Push after local validation; upstream workflow history is retained without enabling automated publishing.
 

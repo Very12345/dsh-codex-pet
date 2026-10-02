@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.1] - 2026-10-02
+
+- Center pet, toolbar and rounded transparent-shadow notifications vertically.
+- Floating new-chat draft, host-configured voice dictation and conversation collapse with a counted bell.
+- Create sessions only on explicit send; transcripts fill the draft. Bounded PCM capture, recognizer readiness and microphone cleanup on finish/disconnect, verified with simulated audio.
+
 ## [0.2.0] - 2026-10-02 (independent fork)
 
 - Native transparent Windows companion outside DSH, with topmost/non-activating display, drag, DPI, monitor placement and context menu.

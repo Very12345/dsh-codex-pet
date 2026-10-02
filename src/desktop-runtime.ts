@@ -11,6 +11,7 @@ import type {CompanionSnapshot} from './companion-api.ts';
 
 type Lease = {owner:string; token:string; stream?:ServerResponse; reconnect?:ReturnType<typeof setTimeout>};
 type Reply = {resolve:(value?:unknown)=>void; reject:(error:Error)=>void; timer:ReturnType<typeof setTimeout>};
+export interface SpeechHost {snapshot():{providers:{id:string;preparation?:{phase:string}}[];selection:{providerId:string}};resolve(request:{audio:Buffer}):unknown;transcribe(spec:unknown,signal:AbortSignal):Promise<{text:string}>;}
 export class DesktopRuntime {
   readonly supported: boolean;
   error='';
@@ -25,7 +26,8 @@ export class DesktopRuntime {
   private closed=false;
   private stopTimer?:ReturnType<typeof setTimeout>;
   private heartbeat?:ReturnType<typeof setInterval>;
-  constructor(private library:PetLibrary, private options:{platform?:string; spawn?:typeof spawn; startupTimeoutMs?:number; reconnectMs?:number}={}) {
+  private speechJobs=new Set<AbortController>();
+  constructor(private library:PetLibrary, private options:{platform?:string; spawn?:typeof spawn; startupTimeoutMs?:number; reconnectMs?:number;speech?:()=>SpeechHost|undefined}={}) {
     this.supported=(options.platform ?? process.platform)==='win32';
   }
   get running(){return !!this.child && !this.error;}
@@ -132,7 +134,7 @@ export class DesktopRuntime {
   }
   private async dispatch(command:unknown,nativeId?:string){
     if(!this.lease?.stream){if(this.child)this.send({type:'result',id:nativeId,ok:false,error:'DSH connection is unavailable'});return;}
-    const id=randomUUID(),finished=this.wait(id);
+    const id=randomUUID(),finished=this.wait(id,(command as {type?:string})?.type==='voice-toggle'?180000:30000);
     this.event('command',{id,command});
     try{await finished;this.send({type:'result',id:nativeId ?? id,ok:true});}
     catch(error){if(this.child)this.send({type:'result',id:nativeId ?? id,ok:false,error:String(error)});}
@@ -152,7 +154,7 @@ export class DesktopRuntime {
   async publish(token:unknown,value:unknown){
     this.authorized(token);
     if(!value || typeof value!=='object')throw new Error('Invalid desktop snapshot');
-    const source=value as CompanionSnapshot & {image?:string;spriteKey?:string};
+    const source=value as CompanionSnapshot & {image?:string;spriteKey?:string;theme?:string};
     if(!source.notifications || !Array.isArray(source.notifications.items) || source.notifications.items.length>100)throw new Error('Invalid desktop notifications');
     const sequence=++this.sequence;
     const pet=this.library.pets.find(pet=>pet.id===this.library.config.selected);
@@ -175,7 +177,7 @@ export class DesktopRuntime {
     const id=randomUUID(),painted=this.wait(id,15000);
     try{
       this.send({type:'snapshot',id,image,version:pet?.version ?? 1,config:this.library.config,
-        animations:ANIMATIONS,language:source.language,
+        animations:ANIMATIONS,language:source.language,theme:source.theme==='dark'?'dark':'light',
         notifications:source.notifications});
     }catch(error){this.finish(id,String(error));}
     await painted;
@@ -186,6 +188,7 @@ export class DesktopRuntime {
     this.lease=undefined;
   }
   stop(){
+    for(const job of this.speechJobs)job.abort(new Error('Desktop speech was stopped'));
     this.event('stopped',this.error?{error:this.error}:{});this.clearLease();
     const child=this.child;this.cancelStart?.(new Error('Desktop pet stopped during startup'));this.cancelStart=undefined;
     this.child=undefined;this.starting=undefined;this.imageKey='';this.image=undefined;
@@ -197,6 +200,27 @@ export class DesktopRuntime {
     child.once('exit',()=>clearTimeout(stopTimer));
   }
   release(token:unknown){this.authorized(token);this.stop();}
+  voiceReady(token:unknown){
+    this.authorized(token);const speech=this.options.speech?.();
+    if(!speech)throw new Error('请先在 DSH 中启用语音输入插件');
+    const state=speech.snapshot(),provider=state.providers.find(provider=>provider.id===state.selection.providerId);
+    if(!provider || (provider.preparation && provider.preparation.phase!=='ready'))throw new Error('语音识别尚未准备完成，请在 DSH 语音插件设置中准备识别模型');
+    return speech;
+  }
+  async transcribe(token:unknown,encoded:unknown,caller:AbortSignal){
+    const speech=this.voiceReady(token);
+    if(typeof encoded!=='string' || encoded.length>Math.ceil(4*1024*1024/3)*4)throw new Error('录音过大');
+    const audio=Buffer.from(encoded,'base64');
+    if(audio.toString('base64')!==encoded || audio.length<46 || audio.toString('ascii',0,4)!=='RIFF' || audio.toString('ascii',8,12)!=='WAVE' || audio.toString('ascii',36,40)!=='data' || audio.readUInt16LE(20)!==1 || audio.readUInt16LE(22)!==1 || audio.readUInt16LE(34)!==16 || audio.readUInt32LE(40)!==audio.length-44 || audio.readUInt32LE(24)<8000 || audio.readUInt32LE(24)>48000 || (audio.length-44)/2/audio.readUInt32LE(24)>120)throw new Error('无效的录音');
+    const controller=new AbortController();this.speechJobs.add(controller);
+    try{return await speech.transcribe(speech.resolve({audio}),AbortSignal.any([caller,controller.signal]));}
+    finally{this.speechJobs.delete(controller);}
+  }
+  composer(token:unknown,value:unknown){
+    this.authorized(token);if(!value || typeof value!=='object')throw new Error('Invalid composer update');
+    const data=value as {text?:unknown;error?:unknown;state?:unknown};
+    this.send({type:'composer',text:typeof data.text==='string'?data.text.slice(0,10000):'',error:typeof data.error==='string'?data.error.slice(0,2000):'',state:['idle','recording','processing'].includes(String(data.state))?data.state:'idle'});
+  }
   /** Internal diagnostics only; captures this helper's own sprite, never the desktop. */
   async inspect(){
     const id=randomUUID(),result=this.wait(id,5000);

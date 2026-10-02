@@ -21,6 +21,7 @@ import { createPetSession, type CreationSessions } from "./creation.ts";
 import { observePetSettingsIcon } from "./settings-icon.ts";
 import { GlobalOverlay } from "./global-overlay.tsx";
 import {connectDesktop} from './desktop-client.ts';
+import {sendCompanionChat} from './chat.ts';
 interface ClientContext {
   effect?(effect:()=>()=>void):void;
   locale: PetLocaleStore;
@@ -94,6 +95,12 @@ function Overlay({
   const command = async (value: TrayCommand) => {
     const engine = notifications.current;
     if (!engine) throw new Error("会话服务尚未就绪");
+    if(value.type==='new-session'){
+      if(!sessions.create)throw new Error('创建会话尚不可用，请重试');
+      const id=await sessions.create({});await sessions.open?.(id);return;
+    }
+    if(value.type==='send-message'){await sendCompanionChat(sessions as CreationSessions,value.text);return;}
+    if(value.type==='voice-toggle' || value.type==='voice-cancel')throw new Error('语音需要桌面显示连接');
     if (value.type === "sort") {
       engine.sort(value.latest);
       return;
