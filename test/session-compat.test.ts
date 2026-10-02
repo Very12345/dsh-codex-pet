@@ -30,7 +30,7 @@ test('binding 缺失时用 retain 补观察引用，离开目录后释放', () =
   const released: string[] = [];
   const session = { getSnapshot: () => ({ running: false, lastAgentError: 'boom' }), subscribe: () => () => {} };
   const eventSource = { getSnapshot: () => ({ revision: 0, change: { kind: 'replace', entries: [] } }), subscribe: () => () => {} };
-  const list = { ids: ['s1'], byId: { s1: { id: 's1', running: false } } };
+  const list = { ids: ['s1'], byId: { s1: { id: 's1', running: true } } };
   const listeners = new Set<() => void>();
   const sessions = compatibleSessions({
     list: { getSnapshot: () => list, subscribe: (fn: () => void) => { listeners.add(fn); return () => listeners.delete(fn); } },
@@ -60,6 +60,18 @@ test('当前会话优先 retainedBy.mainView，否则回退 list.current', () =>
     ids: ['a'],
     byId: { a: { id: 'a', running: true } },
   }), 'old');
+});
+
+test('停止的任务立即释放观察引用，卸载释放剩余引用和订阅',()=>{
+  const listeners=new Set<()=>void>(),released:string[]=[];
+  const state={ids:['idle','running'],byId:{idle:{id:'idle',running:false},running:{id:'running',running:true}}};
+  const sessions=compatibleSessions({list:{getSnapshot:()=>state,subscribe:(fn:()=>void)=>{listeners.add(fn);return()=>listeners.delete(fn);}},binding:()=>undefined,
+    retain(id:string){return {binding:{session:{getSnapshot:()=>({running:true,lastAgentError:null}),subscribe:()=>()=>{}}},ready:Promise.resolve(),release(){released.push(id);}};}} as unknown as Sessions);
+  assert.equal(sessions.binding('idle'),undefined);assert.ok(sessions.binding('running'));
+  state.byId.running.running=false;for(const fn of listeners)fn();assert.deepEqual(released,['running']);
+  state.byId.running.running=true;assert.ok(sessions.binding('running'));sessions.dispose();
+  assert.deepEqual(released,['running','running']);assert.equal(listeners.size,0);
+  assert.equal(sessions.binding('running'),undefined);sessions.dispose();assert.equal(released.length,2);
 });
 
 test('旧版时间线不重播历史完成，增量保留取消原因并复用绑定', () => {

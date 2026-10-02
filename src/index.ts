@@ -11,7 +11,8 @@ import { join } from "node:path";
 import { spawn, execFile } from "node:child_process";
 import { BASE } from "./model.ts";
 import { PetLibrary } from "./library.ts";
-export const name = "michengai-codex-pet";
+import {DesktopRuntime} from './desktop-runtime.ts';
+export const name = "very12345-codex-pet";
 export const inject = ["webServer"];
 const packageRoot = fileURLToPath(new URL("../", import.meta.url));
 export function json(res: ServerResponse, status: number, data: unknown): void {
@@ -39,12 +40,12 @@ export function trustedWrite(req: IncomingMessage): boolean {
     }
     return true;
 }
-async function body(req: IncomingMessage): Promise<Record<string, unknown>> {
+async function body(req: IncomingMessage, limit=16384): Promise<Record<string, unknown>> {
     let size = 0;
     const chunks: Buffer[] = [];
     for await (const chunk of req) {
         size += chunk.length;
-        if (size > 16384) throw new Error("请求过大");
+        if (size > limit) throw new Error("请求过大");
         chunks.push(Buffer.from(chunk));
     }
     const value: unknown = JSON.parse(Buffer.concat(chunks).toString("utf8"));
@@ -62,6 +63,7 @@ export async function createHost(
         options.skillRoot,
     );
     await library.init();
+    const desktop = new DesktopRuntime(library);
     let updateHandler:
         | ((req: HostRequest, res: HostResponse) => Promise<void>)
         | undefined;
@@ -81,12 +83,14 @@ export async function createHost(
         },
         {
             endpoint: `${BASE}/api/update`,
-            packageName: "@michengai/dsh-codex-pet",
+            packageName: "@very12345/dsh-codex-pet",
             manifestUrl: new URL("../package.json", import.meta.url),
         },
     );
     const snapshot = () => ({
         ...library.snapshot(),
+        desktopSupported: desktop.supported,
+        desktopError: desktop.error,
         creationAvailable: false,
         creation: null,
     });
@@ -102,7 +106,24 @@ export async function createHost(
                 json(res, 403, { error: "不受信任的 Host" });
                 return;
             }
-            const path = new URL(req.url ?? "/", authority).pathname;
+            const url = new URL(req.url ?? "/", authority);
+            const path = url.pathname;
+            if (path.startsWith(`${BASE}/api/desktop/`)) {
+                if(req.socket.remoteAddress && !['127.0.0.1','::1','::ffff:127.0.0.1'].includes(req.socket.remoteAddress))throw new Error('桌面宠物只允许本机连接');
+                if(req.method==='GET' && path===`${BASE}/api/desktop/events`){
+                    if(req.headers['sec-fetch-site']==='cross-site')throw new Error('请求来源校验失败');
+                    desktop.attach(url.searchParams.get('token'),res);return;
+                }
+                if(req.method!=='POST'){json(res,405,{error:'方法不支持'});return;}
+                if(!trustedWrite(req)){json(res,403,{error:'请求来源校验失败'});return;}
+                const value=await body(req,path===`${BASE}/api/desktop/snapshot`?32*1024*1024:512*1024);
+                if(path===`${BASE}/api/desktop/begin`){json(res,200,await desktop.begin(value.owner));return;}
+                if(path===`${BASE}/api/desktop/snapshot`)await desktop.publish(value.token,value.snapshot);
+                else if(path===`${BASE}/api/desktop/ack`)desktop.acknowledge(value.token,value.id,value.error);
+                else if(path===`${BASE}/api/desktop/end`)desktop.release(value.token);
+                else {json(res,404,{error:'未知操作'});return;}
+                json(res,200,{});return;
+            }
             if (path === `${BASE}/api/update` && updateHandler) {
                 await updateHandler(req, res);
                 return;
@@ -137,7 +158,10 @@ export async function createHost(
                 return;
             }
             const value = await body(req);
-            if (path === `${BASE}/api/config`) await library.update(value);
+            if (path === `${BASE}/api/config`) {
+                await library.update(value);
+                if(!library.config.desktop)desktop.stop();
+            }
             else if (path === `${BASE}/api/refresh`) await library.refresh();
             else if (path === `${BASE}/api/create`) {
                 throw new Error("请从 DSH 宠物设置发起创建会话");
@@ -216,7 +240,7 @@ export async function createHost(
                 });
         }
     };
-    return { handler, library, dispose: () => {} };
+    return { handler, library, desktop, dispose: () => desktop.dispose() };
 }
 interface HostContext {
     get(name: string): {

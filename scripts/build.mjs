@@ -4,4 +4,4 @@ const define = { __PET_VERSION__: JSON.stringify(JSON.parse(await readFile('pack
 await mkdir('lib', { recursive: true });
 await build({ entryPoints: ['src/index.ts'], bundle: true, platform: 'node', format: 'esm', outfile: 'lib/index.js', target: 'node22' });
 const result = await build({ entryPoints: ['src/client.tsx'], define, bundle: true, format: 'cjs', write: false, external: ['react', 'react-dom', 'react-dom/client', 'react/jsx-runtime'], target: 'es2022', jsx: 'automatic' });
-await writeFile('lib/client.js', `window.__ModuleLoader__.load({id:"@michengai/dsh-codex-pet",factory:function(require){var module={exports:{}};var exports=module.exports;\n${result.outputFiles[0].text}\nreturn module.exports;}});\n`, 'utf8');
+await writeFile('lib/client.js', `window.__ModuleLoader__.load({id:"@very12345/dsh-codex-pet",factory:function(require){var module={exports:{}};var exports=module.exports;\n${result.outputFiles[0].text}\nreturn module.exports;}});\n`, 'utf8');

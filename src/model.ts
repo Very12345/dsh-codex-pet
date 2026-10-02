@@ -55,12 +55,16 @@ export interface Config {
   visible: boolean;
   size: number;
   position: { x: number; y: number } | null;
+  desktop: boolean;
+  desktopPosition: { screen: string; x: number; y: number } | null;
 }
 export const DEFAULT_CONFIG: Config = {
   selected: "codex",
   visible: true,
   size: 120,
   position: null,
+  desktop: true,
+  desktopPosition: null,
 };
 export interface Activity {
   pose: Pose;
@@ -76,6 +80,8 @@ export interface Creation {
   threadId?: string;
 }
 export interface Library {
+  desktopSupported?: boolean;
+  desktopError?: string;
   pets: Pet[];
   config: Config;
   customPath: string;
@@ -99,6 +105,13 @@ export function normalizeConfig(
     throw new Error("宠物标识无效");
   if (data.visible !== undefined && typeof data.visible !== "boolean")
     throw new Error("显示状态无效");
+  if (data.desktop !== undefined && typeof data.desktop !== "boolean") throw new Error("桌面显示状态无效");
+  if (data.desktopPosition !== undefined && data.desktopPosition !== null &&
+      (typeof data.desktopPosition.screen !== 'string' || data.desktopPosition.screen.length > 128 ||
+       !Number.isFinite(data.desktopPosition.x) || !Number.isFinite(data.desktopPosition.y) ||
+       data.desktopPosition.x < 0 || data.desktopPosition.x > 1 || data.desktopPosition.y < 0 || data.desktopPosition.y > 1)) {
+    throw new Error("桌面位置无效");
+  }
   if (
     data.size !== undefined &&
     (!Number.isFinite(data.size) || data.size < 64 || data.size > 224)
@@ -120,6 +133,8 @@ export function normalizeConfig(
     visible: data.visible ?? previous.visible,
     size: data.size ?? previous.size,
     position: data.position === undefined ? previous.position : data.position,
+    desktop: data.desktop ?? previous.desktop ?? true,
+    desktopPosition: data.desktopPosition === undefined ? previous.desktopPosition ?? null : data.desktopPosition,
   };
 }
 export interface SessionState {

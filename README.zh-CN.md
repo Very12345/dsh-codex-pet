@@ -1,137 +1,61 @@
-<p align="center">
-  <img src="assets/branding/dsh-codex-pet-banner.png" alt="DSH Codex Pet" width="100%">
-</p>
+# DSH 悬浮宠物
 
-<div align="center">
+这是 [MichengAI/dsh-codex-pet](https://github.com/MichengAI/dsh-codex-pet) 的独立 fork，基于上游 0.1.12。新增 Windows 原生透明浮窗，让宠物能显示在 DSH 窗口之外。当前 fork 版本为 **0.2.0**。
 
-# DSH Codex Pet
+## 功能
 
-**让宠物陪你处理 DeepSeek Harness 任务**
+- 宠物独立置顶显示；切换应用、离开或最小化 DSH 后仍可见。启动和状态更新不抢占焦点。
+- 宠物背景透明，透明像素处不挡鼠标。拖动可移动位置，双击跳跃，右键打开菜单。
+- 保留 9 只内置宠物、自定义宠物、动画及任务通知。通知可以打开关联会话、停止当前轮次、关闭提醒和回答支持的审批、问题与计划请求。
+- 桌面位置按显示器保存，支持 DPI 缩放和负坐标显示器；显示器移除时回到主屏。拖动时夹在当前屏幕工作区内。
+- **设置 → 悬浮宠物 → 外观 → 桌面悬浮** 可切换桌面或页内显示。右键菜单也可返回页内显示、收起宠物或打开设置。
+- 浮窗成功绘制后才接管显示；进程故障时恢复页内宠物。关闭 DSH、卸载插件或显示页面断开后，浮窗自动关闭。
 
-[English](README.md) · [更新日志](CHANGELOG.zh-CN.md) · [Apache-2.0](LICENSE)
+## 运行环境
 
-[![许可证：Apache-2.0](https://img.shields.io/badge/许可证-Apache--2.0-blue.svg)](LICENSE)
-[![npm package](https://img.shields.io/npm/v/%40michengai%2Fdsh-codex-pet.svg?label=npm%20package)](https://www.npmjs.com/package/@michengai/dsh-codex-pet)
-[![npm 下载量](https://img.shields.io/npm/dt/%40michengai%2Fdsh-codex-pet.svg?label=npm%20%E4%B8%8B%E8%BD%BD%E9%87%8F)](https://www.npmjs.com/package/@michengai/dsh-codex-pet)
-[![DSH Web Plugin](https://img.shields.io/badge/DSH%20Web-Plugin-0f766e.svg)](https://github.com/MichengAI/dsh-codex-pet)
-[![Node.js 22.19+](https://img.shields.io/badge/Node.js-22.19%2B-339933.svg?logo=node.js&logoColor=white)](https://nodejs.org/)
+桌面浮窗当前支持 **Windows 10/11**，使用系统自带 Windows PowerShell 和 WinForms。不修改官方 DSH 安装文件，不依赖 MichengAI 的桌面分支，也不下载第二套 Electron。
 
-</div>
-
-> DSH Codex Pet 是社区维护的 DeepSeek Harness（DSH）宠物插件，并非 OpenAI 或 DeepSeek AI 官方产品。
-
-## 功能概览
-
-让宠物陪你处理 DSH 任务，随时查看会话进展和待处理请求。你可以选择内置宠物，也可以通过 Skill 创建自己的伙伴。
-
-- **9 只内置宠物**：在宠物设置中选择伙伴、调整大小，资源随插件本地打包。
-- **页内陪伴**：在 DSH 网页中陪伴工作；桌面浮窗需要使用支持宠物功能的桌面端。
-- **多会话动态**：查看运行中、完成、错误和待处理请求；没有通知时只显示宠物。
-- **就近处理任务**：从通知打开对应会话、停止当前轮次，或处理支持的审批、问题和计划请求。
-- **按需安静**：关闭单条提醒不会停止任务；通过菜单或设置收起、恢复宠物。
-- **创建自己的伙伴**：在设置中描述宠物，通过随包 `hatch-pet` Skill 发起独立 DSH 创建任务。
-- **轻量互动**：拖动移动、双击跳跃、右键打开宠物菜单。
-
-## 界面预览
-
-### 多会话提醒
-
-宠物旁集中展示运行中的任务，可分别打开会话、停止当前轮次或关闭提醒。
-
-<p align="center">
-  <img src="assets/screenshots/pet-notifications.png" alt="宠物与两条运行中的任务通知" width="403">
-</p>
-
-### 宠物设置
-
-选择 9 只内置宠物、打开自定义宠物目录，并调整宠物大小。
-
-![宠物库与外观设置](assets/screenshots/pet-settings.png)
-
-### 会话内陪伴
-
-在 DSH 中继续工作，宠物和任务通知显示在页面角落。
-
-![DSH 会话中的宠物与任务通知](assets/screenshots/pet-conversation.png)
-
-## DSH 产品生态
-
-想使用桌面工作台，可下载 [DSH Codex Desktop](https://github.com/MichengAI/dsh-codex-desktop/releases)；已有 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 环境，可按各项目 README 按需安装。以下列出 11 个自研插件；桌面端实际随附范围以对应版本的发行说明和内置清单为准。
-
-| 插件 | 你可以用它做什么 |
-| --- | --- |
-| [Codex UI](https://github.com/MichengAI/dsh-codex-ui) | 整理项目与会话、搜索任务、跳转对话轮次 |
-| [Agency Agents](https://github.com/MichengAI/dsh-agency-agents) | 按任务选择并召唤专业角色 |
-| [Skills Manager](https://github.com/MichengAI/dsh-skills-manager) | 统一查找、启停、创建和导入本机技能 |
-| [Archive Manager](https://github.com/MichengAI/dsh-archive-manager) | 搜索、恢复或清理已归档会话 |
-| [IM Connect](https://github.com/MichengAI/dsh-im-connect) | 从消息平台下任务、收回复 |
-| [Automation](https://github.com/MichengAI/dsh-automation) | 按计划执行任务，查看每次运行的结果 |
-| [BTW](https://github.com/MichengAI/dsh-btw) | 在当前上下文中临时旁问，不打断主任务 |
-| [Simplify](https://github.com/MichengAI/dsh-simplify) | 用 `/simplify` 整理 Git 改动范围内的代码 |
-| [PUA](https://github.com/MichengAI/dsh-pua) | 引导 Agent 在失败时换方法、查原因，并在完成前验证结果 |
-| [Code Review](https://github.com/MichengAI/dsh-code-review) | 用 `/review` 发起独立 Agent 代码审查，在当前会话接收报告 |
-| [Codex Pet](https://github.com/MichengAI/dsh-codex-pet) | 通过桌面宠物查看会话提醒、处理工具审批和问题回答 |
+保留上游声明的 DSH RC 兼容名单；开发基线和当前验证目标为 **DSH 0.2.0-rc.2**。Linux/macOS 保留页内宠物，本 fork 尚未实现这两个平台的原生浮窗。退出整个 DSH 后宠物关闭；它不是独立运行的任务代理。
 
 ## 安装
 
-支持的 DeepSeek Harness 版本：**`0.1.2-rc.1`、`0.1.5-rc.1`、`0.1.5-rc.2`、`0.1.5-rc.3`、`0.1.7-rc.1`、`0.1.7-rc.2`、`0.2.0-rc.1`、`0.2.0-rc.2`**。alpha 宿主已移出兼容名单，上述 RC 仍保留。需要可用的 `dsh` 命令。以下示例使用 `web` profile，请按实际环境替换。
+此 fork 通过 GitHub 推送分发，不发布 npm 或 GitHub Release。`lib/` 已构建并提交，插件自身没有安装阶段构建脚本：
 
 ```powershell
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$OutputEncoding = [System.Text.Encoding]::UTF8
-
-dsh plugin --profile web add @michengai/dsh-codex-pet@latest --registry=https://registry.npmjs.org/ --ignore-scripts
+dsh plugin --profile desktop add 'https://github.com/Very12345/dsh-codex-pet.git' --ignore-scripts
 ```
 
-安装后重启 DSH，再打开 **设置 → 宠物**。
+如原先装过 `@michengai/dsh-codex-pet`，请先移除上游包，再安装 fork；两个版本使用同一资源路由，不应同时启用。另一款 `dsh-pet` 蓝鲸插件可继续保留，本 fork 以“悬浮宠物”单独显示。已有宠物和显示偏好保留在 `.dsh/codex-pet`。桌面模式默认开启，安装后重启 DSH。
 
-## 使用
+如果没有 `dsh` 命令，请通过官方 DSH 的插件安装入口使用上述 GitHub 仓库地址。设置页 GitHub 按钮指向本 fork；更新时重新安装仓库最新版，避免用上游 npm 更新覆盖浮窗实现。
 
-打开 **设置 → 宠物**，也可从宠物右键菜单打开设置。
+## 交互与边界
 
-| 目标 | 操作 |
-| --- | --- |
-| 选择伙伴 | 在设置中选择宠物并调整大小。 |
-| 移动与互动 | 拖动宠物移动，双击跳跃。 |
-| 查看任务动态 | 阅读通知气泡；多个任务需要关注时展开列表。 |
-| 继续会话 | 点击通知或回复按钮，打开对应的 DSH 任务。 |
-| 处理请求 | 展开请求详情，处理支持的审批、问题或计划。 |
-| 停止任务轮次 | 点击对应运行中通知的停止按钮。 |
-| 关闭提醒 | 点击通知关闭按钮，任务仍继续运行。 |
-| 收起或恢复宠物 | 使用右键菜单或宠物设置。 |
+任务通知来自原生 DSH 会话快照，浮窗通过 SSE 接收并回传操作。审批保留原会话、轮次和请求标识，仍由宿主验证；不会自动批准或更改权限。新建会话和后续消息在 DSH 主界面完成。
 
-宠物承担通知和待处理操作。新建会话、输入后续消息仍在 DSH 主界面完成。
+桌面模式一次由一个 DSH 页面接管。切换窗口或最小化不会释放接管；页面真正关闭、刷新或连接中断时保留最多 10 秒重连时间，再关闭浮窗。重新加载页面可重新创建。关闭或操作失败后，可在设置中关闭再开启桌面悬浮重试。
 
-已知问题：在 DSH `0.1.5-rc.2` 中，若模型尚未开始响应就停止任务，宠物可能显示失败通知。
+图集按需在内存中转成 PNG，原始文件和自定义宠物不改写。会话观察引用仅在任务运行或等待交互时保留，停止和卸载时释放，避免占用已停止对话。
 
-### 创建自定义宠物
-
-1. 打开宠物设置，点击 **创建**，描述想要的伙伴。
-2. 点击 **在 DSH 中创建**，插件会打开独立任务并发送随包 Skill 指令。
-3. 在该任务中查看进展，创建使用 DSH 当前配置的模型和图像工具。
-4. 宠物文件生成并保存后，刷新宠物库并选择新伙伴。
-
-创建宠物需要先在 DSH 中配置图像生成工具。
-
-## 更新与卸载
-
-在 **设置 → 宠物 → 检查更新** 中更新。若当前环境不支持在线安装，可复制界面提供的更新命令。等待正在运行的任务结束后操作，完成后按提示重启 DSH。
-
-卸载命令：
+## 开发与验证
 
 ```powershell
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$OutputEncoding = [System.Text.Encoding]::UTF8
-
-dsh plugin --profile web remove @michengai/dsh-codex-pet
+npm ci --ignore-scripts
+npm run verify
+npm run smoke
+npm run smoke:desktop
+node scripts/smoke-desktop-client.mjs
+npm pack --dry-run --ignore-scripts
 ```
 
-自定义宠物默认保存在用户目录的 `.dsh/codex-pet/pets` 下，可从宠物设置打开。设置了 `DSH_HOME` 时使用该目录下的 `codex-pet/pets`。卸载插件会保留这些文件与配置。
+Windows 浏览器测试默认使用 Edge，可通过 `DSH_PET_BROWSER_CHANNEL` 修改。测试使用独立临时 DSH 数据和模拟会话，不操作日常会话或真实审批。原生烟测只捕获自己的宠物图像，保存在忽略的 `.preview/`。
 
-## 参与开发
+已验证 48 项自动化测试、页内通知与中英文界面、Windows 透明/置顶/非激活窗口、200% DPI、隐藏页面、审批桥接、页内回退和进程关闭。未承诺 macOS/Linux 浮窗或所有旧宿主的原生浮窗行为。
 
-本地开发、测试与发布流程见 [开发与验证指南](https://github.com/MichengAI/dsh-codex-pet/blob/main/CONTRIBUTING.md)。
+GitHub Actions 在本 fork 中关闭，本地检查后直接推送，不消耗 Actions 额度。上游历史和 workflow 文件保留，未启用自动发布。
 
-## 许可证
+## 来源与许可
 
-原创插件代码采用 [Apache License 2.0](LICENSE)。随包宠物图集来源于 OpenAI Codex，不属于本项目授予的 Apache-2.0 许可范围，详见 [NOTICE](NOTICE)。
+上游原始提交：`d1a44741a939b8126d1f0acff7700712acb5df54`。保留其 Apache-2.0 代码许可；本 fork 原创浮窗与桥接代码同样为 Apache-2.0。
+
+宠物图集来源于 OpenAI Codex，不属于该代码许可的授权范围，原始权利声明见 [NOTICE](NOTICE)。本项目由社区维护，不是 OpenAI 或 DeepSeek 官方产品。

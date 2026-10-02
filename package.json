@@ -1,8 +1,14 @@
 {
-  "name": "@michengai/dsh-codex-pet",
-  "version": "0.1.12",
+  "name": "@very12345/dsh-codex-pet",
+  "version": "0.2.0",
   "license": "Apache-2.0",
-  "description": "DSH Codex Pet — 为 DeepSeek Harness 提供宠物陪伴、多任务提醒与交互，以及 Skill 自定义宠物 · A pet companion with multi-task notifications, interactions, and Skill-based custom pets for DeepSeek Harness",
+  "description": "Windows floating desktop pet and multi-task notifications for DeepSeek Harness; independent fork of MichengAI/dsh-codex-pet",
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "desktop-pet",
+    "windows"
+  ],
   "type": "module",
   "publishConfig": {
     "access": "public",
@@ -10,11 +16,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MichengAI/dsh-codex-pet.git"
+    "url": "git+https://github.com/Very12345/dsh-codex-pet.git"
   },
-  "homepage": "https://github.com/MichengAI/dsh-codex-pet#readme",
+  "homepage": "https://github.com/Very12345/dsh-codex-pet#readme",
   "bugs": {
-    "url": "https://github.com/MichengAI/dsh-codex-pet/issues"
+    "url": "https://github.com/Very12345/dsh-codex-pet/issues"
   },
   "main": "lib/index.js",
   "exports": {
@@ -26,6 +32,8 @@
     "LICENSE",
     "NOTICE",
     "lib",
+    "native/desktop-pet.ps1",
+    "native/desktop-pet.cs",
     "assets/codex/*/spritesheet.webp",
     "assets/branding/dsh-codex-pet-banner.png",
     "assets/screenshots/*.png",
@@ -50,13 +58,14 @@
     }
   },
   "scripts": {
-    "prepack": "npm run build && tsx scripts/verify-package.ts",
+    "verify": "npm run check && npm test && npm run build && tsx scripts/verify-package.ts",
     "build": "node scripts/build.mjs",
     "check": "tsc --noEmit",
     "test": "tsx --test test/*.test.ts test/*.test.mjs",
     "test:e2e": "node scripts/e2e-latest.mjs",
     "smoke": "npm run build && node scripts/run-smoke.cjs",
-    "assets:import": "tsx scripts/import-codex.ts"
+    "assets:import": "tsx scripts/import-codex.ts",
+    "smoke:desktop": "node scripts/smoke-desktop.mjs"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-host-webserver": "0.1.2-rc.1 || 0.1.5-rc.1 || 0.1.5-rc.2 || 0.1.5-rc.3 || 0.1.7-rc.1 || 0.1.7-rc.2 || 0.2.0-rc.1 || 0.2.0-rc.2",
@@ -88,7 +97,8 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "tsx": "^4.20.0",
-    "typescript": "^5.9.0"
+    "typescript": "^5.9.0",
+    "sharp": "0.34.5"
   },
   "engines": {
     "node": ">=22.19.0"

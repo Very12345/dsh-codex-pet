@@ -12,13 +12,14 @@ if (!smokeRoot)
   const host = await createHost({
     dataRoot: resolve(smokeRoot, "activity-data"),
   });
+  await host.library.update({desktop:false});
   const server = require("node:http").createServer(
     (req, res) => void host.handler(req, res),
   );
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   let browser;
   try {
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch({ headless: true, ...(process.platform==='win32'?{channel:process.env.DSH_PET_BROWSER_CHANNEL || 'msedge'}:{}) });
     const page = await browser.newPage({
       viewport: { width: 800, height: 600 },
     });
@@ -37,7 +38,7 @@ if (!smokeRoot)
       `http://127.0.0.1:${server.address().port}/dsh-codex-pet/api/state`,
     );
     await page.evaluate(
-      `document.body.innerHTML='<button class="dcu-settings-link"><svg></svg><span>宠物</span></button><div id="root"></div>'; ${prelude.outputFiles[0].text}`,
+      `document.body.innerHTML='<button class="dcu-settings-link"><svg></svg><span>悬浮宠物</span></button><div id="root"></div>'; ${prelude.outputFiles[0].text}`,
     );
     await page.evaluate(readFileSync("lib/client.js", "utf8"));
     await page.evaluate(`
@@ -192,9 +193,9 @@ if (!smokeRoot)
       ),
       false,
     );
-    assert.equal(await page.evaluate(`petSection.label()`), "Pets");
+    assert.equal(await page.evaluate(`petSection.label()`), "Floating pet");
     await waitFor(
-      `document.querySelector('.dcp-head h2')?.textContent==='Choose a pet' && document.querySelector('.mpi-check')?.textContent==='Check for updates'`,
+      `document.querySelector('.dcp-head h2')?.textContent==='Choose a pet' && document.querySelector('.dcp-project-links a')?.href==='https://github.com/Very12345/dsh-codex-pet'`,
     );
     assert.equal(
       await page.evaluate(
@@ -208,11 +209,8 @@ if (!smokeRoot)
       resolve(smokeRoot, "pet-settings-en.png"),
       await page.screenshot(),
     );
-    await page.evaluate(`document.querySelector('.mpi-check').click()`);
-    await waitFor(
-      `document.querySelector('.mpi-dialog h2')?.textContent.includes('Pets')`,
-    );
-    await page.evaluate(`document.querySelector('.mpi-dialog-close').click()`);
+    assert.equal(await page.locator('.mpi-check').count(),0,'Fork does not offer an upstream npm update that would replace its code');
+    if(process.platform==='win32')assert.ok(await page.locator('#dcp-desktop').evaluate(element=>element.getBoundingClientRect().height)>=20);
 
     assert.equal(
       await page.evaluate(
@@ -265,77 +263,9 @@ if (!smokeRoot)
       await page.evaluate(
         `document.querySelector('.dcp-project-links a').href`,
       ),
-      "https://github.com/MichengAI/dsh-codex-pet",
+      "https://github.com/Very12345/dsh-codex-pet",
     );
-    // 仅拦截隔离窗口的更新响应，不调用真实安装器。
-    await page.evaluate(
-      `window.updateMode='unpublished';window.originalPetFetch=window.fetch;window.fetch=async (url,options)=>String(url).endsWith('/api/update')?Response.json({packageName:'@michengai/dsh-codex-pet',currentVersion:'0.1.0',latestVersion:updateMode==='unpublished'?undefined:'0.2.0',notPublished:updateMode==='unpublished',latestCheckFailed:false,updateAvailable:updateMode!=='unpublished',profileName:'smoke',canAutoUpdate:true,...(options?.method==='POST'?{updatedVersion:'0.2.0',autoReload:false}:{})}):originalPetFetch(url,options);document.querySelector('.dcp-project-links button').click()`,
-    );
-    await waitFor(
-      `document.querySelector('.mpi-status')?.textContent.includes('尚未发布到 npm')`,
-    );
-    assert.equal(
-      await page.evaluate(
-        `document.querySelector('.mpi-dialog .mpi-primary').disabled`,
-      ),
-      true,
-    );
-    await page.evaluate(
-      `window.updateMode='available';Array.from(document.querySelectorAll('.mpi-dialog footer button')).find(b=>b.textContent==='重新检查').click()`,
-    );
-    await waitFor(
-      `document.querySelector('.mpi-status')?.textContent.includes('发现新版本')`,
-    );
-    await new Promise((resolve) => setTimeout(resolve, 250));
-    writeFileSync(
-      resolve(smokeRoot, "pet-update-dialog.png"),
-      await page.screenshot(),
-    );
-    await page.evaluate(
-      `document.querySelector('.mpi-dialog .mpi-primary').click()`,
-    );
-    await waitFor(
-      `document.querySelector('.mpi-status')?.textContent.includes('更新完成')`,
-    );
-    assert.equal(
-      await page.evaluate(
-        `document.querySelector('.mpi-dialog .mpi-primary').disabled`,
-      ),
-      true,
-    );
-    await page.evaluate(
-      `document.querySelector('.mpi-dialog-close').click();window.fetch=window.originalPetFetch;document.querySelector('dialog[aria-label="宠物设置"]').close()`,
-    );
-    // 后端仍携带兼容中文 error，英文弹窗必须优先按 code 翻译。
-    await page.evaluate(
-      `petLocale.set({active:'en'});window.dispatchEvent(new Event('dcp-open-settings'));window.fetch=async(url,options)=>String(url).endsWith('/api/update')?(options?.method==='POST'?Response.json({code:'UPDATE_TIMEOUT',error:'更新超时，已请求取消；进程结束前不能再次安装。'},{status:503}):Response.json({packageName:'@michengai/dsh-codex-pet',currentVersion:'0.1.0',latestVersion:'0.2.0',notPublished:false,latestCheckFailed:false,updateAvailable:true,profileName:'smoke',canAutoUpdate:true})):originalPetFetch(url,options);void 0`,
-    );
-    await waitFor(
-      `document.querySelector('.mpi-check')?.textContent==='Check for updates'`,
-    );
-    await page.evaluate(`document.querySelector('.mpi-check').click()`);
-    await waitFor(
-      `document.querySelector('.mpi-dialog .mpi-primary')?.disabled===false`,
-    );
-    await page.evaluate(
-      `document.querySelector('.mpi-dialog .mpi-primary').click()`,
-    );
-    await waitFor(
-      `document.querySelector('.mpi-status')?.textContent.includes('timed out')`,
-    );
-    assert.equal(
-      await page.evaluate(
-        `document.querySelector('.mpi-status').textContent.includes('更新超时')`,
-      ),
-      false,
-    );
-    writeFileSync(
-      resolve(smokeRoot, "pet-update-error-en.png"),
-      await page.screenshot(),
-    );
-    await page.evaluate(
-      `document.querySelector('.mpi-dialog-close').click();window.fetch=originalPetFetch;document.querySelector('dialog[aria-label="Pet settings"]').close();petLocale.set({active:'zh'})`,
-    );
+    await page.evaluate(`document.querySelector('dialog[aria-label="宠物设置"]').close();petLocale.set({active:'zh'})`);
     // 消费者通过插件公开接口读取状态与发出命令，插件无需认识消费者。
     await page.evaluate(
       `window.petApi=window.dshPet;window.petChanges=0;window.offPet=petApi.subscribe(()=>petChanges++);window.releasePet=petApi.acquireDisplay();void 0`,

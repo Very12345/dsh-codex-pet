@@ -281,6 +281,12 @@ export function Settings({
       )}
       <section className="dcp-appearance">
         <h2>{t("外观")}</h2>
+        {library?.desktopSupported && <div className="dcp-card dcp-size">
+          <label htmlFor="dcp-desktop">{t('桌面悬浮')}<small>{t('离开或最小化 DSH 后继续显示，拖动可移动位置。')}</small></label>
+          <input id="dcp-desktop" type="checkbox" checked={library.config.desktop} disabled={busy}
+            onChange={event=>void act(()=>controller.update({desktop:event.target.checked}))} />
+        </div>}
+        {!!library?.desktopError && <p className="dcp-note" role="status">{t('桌面浮窗暂不可用，已恢复页内显示。')} {library.desktopError}</p>}
         <div className="dcp-card dcp-size">
           <label htmlFor="dcp-size">
             {t("宠物大小")}

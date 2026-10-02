@@ -1,137 +1,60 @@
-<p align="center">
-  <img src="assets/branding/dsh-codex-pet-banner.png" alt="DSH Codex Pet" width="100%">
-</p>
+# DSH Floating Pet
 
-<div align="center">
+[简体中文](README.zh-CN.md)
 
-# DSH Codex Pet
-
-**A little companion for your DeepSeek Harness tasks**
-
-[简体中文](README.zh-CN.md) · [Changelog](CHANGELOG.md) · [Apache-2.0](LICENSE)
-
-[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
-[![npm package](https://img.shields.io/npm/v/%40michengai%2Fdsh-codex-pet.svg?label=npm%20package)](https://www.npmjs.com/package/@michengai/dsh-codex-pet)
-[![npm downloads](https://img.shields.io/npm/dt/%40michengai%2Fdsh-codex-pet.svg?label=npm%20downloads)](https://www.npmjs.com/package/@michengai/dsh-codex-pet)
-[![DSH Web Plugin](https://img.shields.io/badge/DSH%20Web-Plugin-0f766e.svg)](https://github.com/MichengAI/dsh-codex-pet)
-[![Node.js 22.19+](https://img.shields.io/badge/Node.js-22.19%2B-339933.svg?logo=node.js&logoColor=white)](https://nodejs.org/)
-
-</div>
-
-> DSH Codex Pet is a community-maintained pet plugin for DeepSeek Harness (DSH), not an official OpenAI or DeepSeek AI product.
+An independent fork of [MichengAI/dsh-codex-pet](https://github.com/MichengAI/dsh-codex-pet), based on upstream 0.1.12. Fork version **0.2.0** adds a native Windows floating companion outside the DSH window.
 
 ## Features
 
-Keep a companion nearby while you work in DSH, follow task progress, and handle requests that need your attention. Choose a built-in pet or create your own with a Skill.
+- Transparent, always-on-top pet, visible while DSH is minimized or another app is active. Startup and state updates do not steal focus.
+- Drag to move, double-click to jump, right-click for settings, task notifications, position reset, hiding or returning to page display. Transparent pixels pass mouse input through.
+- Nine built-in pets, custom sprites, animations and existing multi-task notifications. Open a task, stop a turn, dismiss a reminder or respond to supported approvals, questions and plans.
+- Per-display position persistence, DPI scaling and a primary-display fallback when the saved monitor is missing.
+- Display is claimed only after the native frame is painted. A failed helper restores the page companion. Host exit, plugin disposal or a disconnected owner closes the native windows.
 
-- **Nine built-in pets**: choose a companion and adjust its size in pet settings. Assets are bundled locally.
-- **In-page companion**: keep a companion in DSH Web. Floating desktop pets require a desktop app with pet support.
-- **Multiple tasks at a glance**: follow running tasks, completion, errors, and requests that need your attention. An empty notification list leaves only the pet visible.
-- **Act from the notification**: open the associated task, stop its current turn, or handle supported approval, question, and plan requests.
-- **Quiet when you need it**: dismiss an individual reminder without stopping its task; collapse or restore the pet through its menu or settings.
-- **Create your own companion**: describe a pet in settings and start a dedicated DSH task using the bundled `hatch-pet` Skill.
-- **Small interactions**: drag to move, double-click to jump, and right-click for the pet menu.
+## Requirements
 
-## Screenshots
+Native floating display currently supports **Windows 10/11**, using built-in Windows PowerShell and WinForms. It does not modify the official DSH installation or download another Electron runtime.
 
-### Multiple task notifications
+The development and validation baseline is **DSH 0.2.0-rc.2**. The upstream RC compatibility list remains declared. Linux/macOS keep page display; this fork has no native backend for them. The companion closes when DSH exits.
 
-See running tasks beside your companion, with separate controls to open the conversation, stop its current turn, or dismiss its reminder.
+## Install
 
-<p align="center">
-  <img src="assets/screenshots/pet-notifications.png" alt="A pet with two running task notifications" width="403">
-</p>
-
-### Pet settings
-
-Choose from the nine built-in pets, access the custom pet directory, and adjust the pet size.
-
-![Pet library and appearance settings](assets/screenshots/pet-settings.png)
-
-### A companion in your conversation
-
-Keep working in DSH while the pet and task notifications remain in the corner of the page.
-
-![Pet and task notifications alongside a DSH conversation](assets/screenshots/pet-conversation.png)
-
-## DSH product ecosystem
-
-For a desktop workbench, download [DSH Codex Desktop](https://github.com/MichengAI/dsh-codex-desktop/releases). Existing [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) installations can add plugins as needed by following each project's README. Below are 11 first-party plugins; consult the corresponding desktop release notes and bundled catalog for what that version includes.
-
-| Plugin | What you can do |
-| --- | --- |
-| [Codex UI](https://github.com/MichengAI/dsh-codex-ui) | Organize projects and conversations, search tasks, and navigate chat turns |
-| [Agency Agents](https://github.com/MichengAI/dsh-agency-agents) | Choose and summon specialists for your task |
-| [Skills Manager](https://github.com/MichengAI/dsh-skills-manager) | Find, enable, create, and import local skills |
-| [Archive Manager](https://github.com/MichengAI/dsh-archive-manager) | Search, restore, or clean up archived conversations |
-| [IM Connect](https://github.com/MichengAI/dsh-im-connect) | Send tasks and receive replies through messaging platforms |
-| [Automation](https://github.com/MichengAI/dsh-automation) | Schedule tasks and review each run |
-| [BTW](https://github.com/MichengAI/dsh-btw) | Ask side questions without interrupting the main task |
-| [Simplify](https://github.com/MichengAI/dsh-simplify) | Use `/simplify` to improve code within your Git changes |
-| [PUA](https://github.com/MichengAI/dsh-pua) | Guide the Agent to try new approaches after failures, investigate causes, and verify results before completion |
-| [Code Review](https://github.com/MichengAI/dsh-code-review) | Use `/review` to request an independent Agent code review and receive the report in the current conversation |
-| [Codex Pet](https://github.com/MichengAI/dsh-codex-pet) | View conversation notifications and respond to tool approvals and questions through a desktop pet |
-
-## Installation
-
-Supported DeepSeek Harness versions: **`0.1.2-rc.1`, `0.1.5-rc.1`, `0.1.5-rc.2`, `0.1.5-rc.3`, `0.1.7-rc.1`, `0.1.7-rc.2`, `0.2.0-rc.1`, and `0.2.0-rc.2`**. Alpha hosts are no longer supported; these RC releases remain. Make sure the `dsh` command is available. The example uses the `web` profile; replace it with your target profile.
+This fork is distributed by GitHub pushes, without npm publishing or GitHub Releases. Prepared `lib/` files are committed and the plugin has no install-time build lifecycle script.
 
 ```powershell
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$OutputEncoding = [System.Text.Encoding]::UTF8
-
-dsh plugin --profile web add @michengai/dsh-codex-pet@latest --registry=https://registry.npmjs.org/ --ignore-scripts
+dsh plugin --profile desktop add 'https://github.com/Very12345/dsh-codex-pet.git' --ignore-scripts
 ```
 
-Restart DSH after installation, then open **Settings → Pets**.
+Remove `@michengai/dsh-codex-pet` first if installed: both versions use the same asset route and should not run together. Existing data under `.dsh/codex-pet` is retained. Restart DSH after installation. Use the official plugin installer with the GitHub URL if the `dsh` command is unavailable.
 
-## Usage
+Open **Settings → Floating pet → Appearance → Desktop companion**. Native display is enabled by default on Windows. Turn it off to show the companion inside DSH. Use the fork's GitHub URL for updates; upstream npm updates do not contain these changes.
 
-Open **Settings → Pets** (`宠物` in the current UI), or open settings from the pet's right-click menu.
+## Operation
 
-| Goal | Action |
-| --- | --- |
-| Pick a companion | Select a pet in settings and adjust its size. |
-| Move or play | Drag the pet to move it; double-click to jump. |
-| Read task updates | Read the notification bubbles; expand the list when several tasks need attention. |
-| Continue a conversation | Click its notification or reply control to open the corresponding DSH task. |
-| Handle a request | Open the request details and answer the supported approval, question, or plan prompt. |
-| Stop a task turn | Click the stop control on that running task's notification. |
-| Dismiss a reminder | Click its close control. The task continues running. |
-| Hide or restore the pet | Use the right-click menu or pet settings. |
+The host owns a local native helper. A live page pushes session snapshots and receives actions over SSE, including when hidden. Original session, turn and request identities are preserved. Host validation and permission policy still apply; the companion never approves requests automatically.
 
-The pet is a notification and action surface. Start new conversations and write follow-up messages in the main DSH interface.
+One page owns the desktop display at a time. Switching apps or minimizing DSH retains ownership. A closed/disconnected page has a ten-second reconnection grace period; after that the helper exits. Reload the page or toggle desktop display to retry a failed connection.
 
-Known issue: in DSH `0.1.5-rc.2`, stopping a task before the model starts responding may cause the pet to show a failure notification.
+Images are decoded into memory only, leaving the original sprites unchanged. Observation references are released when tasks become idle and when the plugin unloads.
 
-### Create a custom pet
-
-1. Open pet settings, click **Create** (`创建`), and describe the companion.
-2. Click **Create in DSH** (`在 DSH 中创建`). The plugin opens a dedicated task and sends the bundled Skill instructions.
-3. Follow that task's progress. Creation uses DSH's configured model and image tools.
-4. Once the pet files are saved, refresh the pet library and select the new companion.
-
-Creating pets requires an image-generation tool configured in DSH.
-
-## Updates and uninstallation
-
-Use **Settings → Pets → Check for updates**. If automatic installation is unavailable, copy the update command shown in the dialog. Wait for running tasks to finish, then update and restart DSH as prompted.
-
-To uninstall:
+## Development
 
 ```powershell
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$OutputEncoding = [System.Text.Encoding]::UTF8
-
-dsh plugin --profile web remove @michengai/dsh-codex-pet
+npm ci --ignore-scripts
+npm run verify
+npm run smoke
+npm run smoke:desktop
+node scripts/smoke-desktop-client.mjs
+npm pack --dry-run --ignore-scripts
 ```
 
-Custom pets are stored in `.dsh/codex-pet/pets` under your user directory by default; open the folder from pet settings. If `DSH_HOME` is set, pets are stored in its `codex-pet/pets` folder. Uninstalling keeps those files and settings.
+Windows browser tests default to Edge (`DSH_PET_BROWSER_CHANNEL` overrides it). Fixtures use temporary data and fake sessions, never real user approvals. Native screenshots capture only the helper's own sprite under ignored `.preview/`.
 
-## Contributing
+Validation includes 48 automated tests, page notifications and localization, native transparency/topmost/non-activation, 200% DPI, hidden-page continuity, approval transport, page fallback and process cleanup. Native macOS/Linux and all older desktop host combinations are unverified.
 
-See the [development and validation guide (Chinese)](https://github.com/MichengAI/dsh-codex-pet/blob/main/CONTRIBUTING.md) for local development, testing, and release procedures.
+Actions are disabled for this fork. Push after local validation; upstream workflow history is retained without enabling automated publishing.
 
-## License
+## Attribution
 
-Original plugin code is licensed under [Apache License 2.0](LICENSE). Bundled pet artwork originates from OpenAI Codex and is excluded from this project's Apache-2.0 license grant; see [NOTICE](NOTICE).
+Upstream commit: `d1a44741a939b8126d1f0acff7700712acb5df54`. Original plugin code and fork additions are Apache-2.0. Bundled OpenAI Codex artwork is excluded from that code license; see [NOTICE](NOTICE). This is a community project, not an official OpenAI or DeepSeek product.

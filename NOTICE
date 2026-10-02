@@ -1,5 +1,8 @@
 DSH Codex Pet
 Copyright 2026 MichengAI contributors
+Windows floating companion fork: Copyright 2026 Very12345 contributors.
+Original fork additions: native/desktop-pet.*, src/desktop-runtime.ts,
+src/desktop-client.ts, display settings and lifecycle fixes (Apache-2.0).
 
 本项目原创插件代码采用 Apache License 2.0，详见 LICENSE。
 assets/codex 下的宠物图集来源于 OpenAI Codex，并非本项目原创素材。

@@ -1,5 +1,9 @@
 /** 插件界面词典；用户任务标题、问题和回答内容保持原文。 */
 const en: Record<string, string> = {
+  '悬浮宠物': 'Floating pet',
+  '桌面悬浮': 'Desktop companion',
+  '离开或最小化 DSH 后继续显示，拖动可移动位置。': 'Keep visible outside DSH, including while minimized. Drag to move.',
+  '桌面浮窗暂不可用，已恢复页内显示。': 'Desktop display is unavailable. The companion is shown inside DSH.',
   "宠物": "Pets",
   "宠物设置": "Pet settings",
   "关闭设置": "Close settings",

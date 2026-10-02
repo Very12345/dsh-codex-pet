@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.0] - 2026-10-02 (independent fork)
+
+- Native transparent Windows companion outside DSH, with topmost/non-activating display, drag, DPI, monitor placement and context menu.
+- SSE transports existing notifications and original approval/question/plan identities. Claim display after painting; restore page display on failure.
+- Desktop setting, disconnect/parent exit cleanup and release of idle session observation references.
+- Commit prepared lib for GitHub installation without prepack. No fork Actions, npm publishing or Releases; settings link to this fork.
+- Automated, browser, native and browser/host/native integration validation.
+
 ## [0.1.12] - 2026-09-30
 
 - Add compatibility with DSH `0.2.0-rc.2` without dropping the existing supported hosts. Pin development types and the default end-to-end host to this release. Cordis stays `4.0.4`.

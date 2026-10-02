@@ -12,19 +12,27 @@ export function compatibleSessions(
   sessions: HostSessions,
   navigate?: SessionNavigate,
   status?: Store<ReadonlyMap<string, SessionStatusRow>>,
-): Sessions {
+): Sessions & {dispose():void} {
   type Binding = NonNullable<ReturnType<Sessions['binding']>>;
   const cache = new WeakMap<object, Binding>();
   const refs = new Map<string, NonNullable<ReturnType<NonNullable<Sessions['retain']>>>>();
+  let disposed=false;
+  const statusStore=status ?? sessions.status;
+  const active=(id:string)=>{
+    const row=sessions.list?.getSnapshot?.()?.byId[id],live=statusStore?.getSnapshot().get(id);
+    return !!((live?.running ?? row?.running) || live?.pendingInteraction || row?.pendingInteraction);
+  };
   const sweep = () => {
+    if(disposed)return;
     const ids = new Set(sessions.list?.getSnapshot?.()?.ids ?? []);
-    for (const [id, ref] of refs) if (!ids.has(id)) {
-      try { ref.release(); } catch { /* 会话已不在目录 */ }
+    for (const [id, ref] of refs) if (!ids.has(id) || !active(id)) {
       refs.delete(id);
+      try { ref.release(); } catch { /* 会话已不在目录 */ }
     }
   };
-  sessions.list?.subscribe?.(sweep);
+  const offList=sessions.list?.subscribe?.(sweep),offStatus=statusStore?.subscribe?.(sweep);
   return {
+    dispose(){if(disposed)return;disposed=true;offList?.();offStatus?.();const owned=[...refs.values()];refs.clear();for(const ref of owned)ref.release();},
     list: sessions.list,
     status: status ?? sessions.status,
     using: sessions.using?.bind(sessions),
@@ -34,9 +42,10 @@ export function compatibleSessions(
       return sessions.create(options);
     },
     binding(id) {
+      if(disposed)return undefined;
       sweep();
       let binding = sessions.binding(id);
-      if (!binding && sessions.retain) {
+      if (!binding && sessions.retain && active(id)) {
         let ref = refs.get(id);
         if (!ref) {
           try { ref = sessions.retain(id, { source: 'controllerOperation' }); refs.set(id, ref); }

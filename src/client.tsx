@@ -20,7 +20,9 @@ import type { TrayCommand } from "./notification-tray.tsx";
 import { createPetSession, type CreationSessions } from "./creation.ts";
 import { observePetSettingsIcon } from "./settings-icon.ts";
 import { GlobalOverlay } from "./global-overlay.tsx";
+import {connectDesktop} from './desktop-client.ts';
 interface ClientContext {
+  effect?(effect:()=>()=>void):void;
   locale: PetLocaleStore;
   sessions: ISessions;
   uiSession?: UiSession | { pendingInteractions?: PendingStore };
@@ -39,7 +41,7 @@ interface ClientContext {
     ): () => void;
   };
 }
-export const name = "michengai-codex-pet";
+export const name = "very12345-codex-pet";
 export const inject = ["slots", "sessions", "locale"];
 function openSettings(): void {
   const trigger = document.querySelector("[data-dcu-settings-trigger]");
@@ -48,7 +50,7 @@ function openSettings(): void {
       new CustomEvent("dcu-settings-open-section", {
         bubbles: true,
         cancelable: true,
-        detail: { labels: ["宠物", "Pets"] },
+        detail: { labels: ["悬浮宠物", "Floating pet"] },
       }),
     );
   else window.dispatchEvent(new Event("dcp-open-settings"));
@@ -140,6 +142,13 @@ function Overlay({
         : null,
     );
   }, [controller.library, controller.language, state]);
+  useEffect(()=>{
+    if(!provider.current || !controller.library?.desktopSupported || !controller.library.config.desktop)return;
+    const connection=connectDesktop(provider.current.api,controller.refresh,error=>{
+      if(error)console.warn('[dsh-codex-pet] Desktop display unavailable:',error);
+    });
+    return ()=>connection.dispose();
+  },[controller.library?.desktopSupported,controller.library?.config.desktop]);
   return (
     <>
       {!externalDisplay && (
@@ -254,6 +263,7 @@ export function apply(ctx: ClientContext): void {
     },
     liveSessionStatus(ctx),
   );
+  ctx.effect?.(()=>()=>sessions.dispose());
   // Cordis 的 reflect.get 允许探测旧版不存在的服务，不声明不存在的必需依赖。
   const pending = compatiblePending(sessions, () => {
     const live = probe<UiSession | { pendingInteractions?: PendingStore }>(ctx, "uiSession");
@@ -265,7 +275,7 @@ export function apply(ctx: ClientContext): void {
       {
         name: "settings.section",
         id: "codex-pet",
-        label: () => translator(ctx.locale.getSnapshot().active)("宠物"),
+        label: () => translator(ctx.locale.getSnapshot().active)("悬浮宠物"),
         order: 12,
       },
       () => <Page sessions={sessions} locale={ctx.locale} />,
@@ -273,7 +283,7 @@ export function apply(ctx: ClientContext): void {
   );
   ctx.slots.inject("shell.overlay", () =>
     ctx.slots.register(
-      { name: "shell.overlay", id: "michengai-codex-pet", order: 100 },
+      { name: "shell.overlay", id: "very12345-codex-pet", order: 100 },
       () => (
         <GlobalOverlay>
           <Overlay

@@ -63,6 +63,8 @@ export function createNotifications(sessions: Sessions, pending: Store<ReadonlyM
           record.revision = binding.eventSource?.getSnapshot().revision ?? record.revision;
           const offSession = binding.session.subscribe(publish), offEvents = binding.eventSource?.subscribe(publish);
           bindings.set(id, { binding, off: () => { offSession(); offEvents?.(); } });
+        } else if(!binding && previous) {
+          previous.off();bindings.delete(id);
         }
         const snapshot = binding?.session.getSnapshot();
         // 当前详细快照为准；后台 running 使用持续更新的列表，避免冷快照覆盖它。

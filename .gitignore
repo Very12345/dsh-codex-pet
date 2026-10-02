@@ -1,5 +1,5 @@
 node_modules/
-lib/
+.tmp/
 .preview/
 *.tgz
 assets/codex/source.json

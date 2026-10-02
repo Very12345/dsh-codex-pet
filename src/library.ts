@@ -3,7 +3,7 @@ import { readFile, readdir, realpath, stat, mkdir, writeFile, rename, unlink } f
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve, relative, isAbsolute } from 'node:path';
 import { homedir } from 'node:os';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { BASE, BUILTINS, DEFAULT_CONFIG, normalizeConfig, type Config, type Library, type Pet } from './model.ts';
 export function imageVersion(bytes: Buffer): 1 | 2 {
   let width = 0, height = 0;
@@ -52,8 +52,9 @@ export class PetLibrary {
     const pets: Pet[] = []; const files = new Map<string, { root: string; relative: string }>(); const warnings: string[] = [];
     const add = async (id: string, name: string, description: string, root: string, asset: string, source: Pet['source']) => {
       const file = await confined(root, asset);
-      const version = imageVersion(await smallRead(file, 32 * 1024 * 1024));
-      pets.push({ id, name, description, version, source, url: `${BASE}/asset/${encodeURIComponent(id)}` });
+      const bytes=await smallRead(file,32*1024*1024),version=imageVersion(bytes);
+      const revision=createHash('sha256').update(bytes).digest('hex').slice(0,24);
+      pets.push({ id, name, description, version, source, url: `${BASE}/asset/${encodeURIComponent(id)}?v=${revision}` });
       files.set(id, { root, relative: asset });
     };
     for (const [id, name, description] of BUILTINS) {
