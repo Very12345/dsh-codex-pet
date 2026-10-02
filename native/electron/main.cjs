@@ -1,6 +1,6 @@
 const {app,BrowserWindow,ipcMain,screen,dialog}=require('electron');
 const {join}=require('node:path');const readline=require('node:readline');const {createConnection}=require('node:net');
-const {petPlacement,overlayBounds}=require('./layout.cjs');
+const {petPlacement,overlayBounds,constrainPet,panelOffset,VIEWPORT_WIDTH}=require('./layout.cjs');
 const parent=Number(process.argv.find(value=>value.startsWith('--parent-pid='))?.split('=')[1]);
 app.setAppUserModelId('org.very12345.dsh-floating-pet');
 let win,snapshot,zones=[],drag,closed=false,currentImage='',fixture=process.env.DSH_PET_NATIVE_TEST==='1',choosingFiles=false;
@@ -14,27 +14,31 @@ function emit(value){if(closed)return;try{process.stdout.write(JSON.stringify(va
 function quit(){if(closed)return;closed=true;app.quit();}
 process.stdout.on('error',quit);process.stderr.on('error',quit);
 function owner(event){return win && event.sender===win.webContents && event.senderFrame===win.webContents.mainFrame;}
+function nativeArea(display){return {...display.workArea,height:display.bounds.y+display.bounds.height-display.workArea.y};}
+function anchorDisplay(){return anchor?screen.getDisplayNearestPoint({x:Math.round(anchor.x+anchor.size/2),y:Math.round(anchor.y+anchor.size*208/192/2)}):screen.getPrimaryDisplay();}
+function publishLayout(){if(win&&anchor&&!closed)win.webContents.send('pet:message',{type:'layout',above:layoutAbove,panelOffsetX:panelOffset(anchor,nativeArea(anchorDisplay()))});}
 function placement(height){
  const displays=screen.getAllDisplays(),position=snapshot?.config?.desktopPosition;
- const display=displays.find(display=>'display:'+display.id===position?.screen)||screen.getPrimaryDisplay();const area=display.workArea;
+ const display=displays.find(display=>'display:'+display.id===position?.screen)||screen.getPrimaryDisplay();const area=nativeArea(display);
  anchor=petPlacement(snapshot?.config,area);layoutAbove=anchor.above;
  return overlayBounds(anchor,{height,petTop},area);
 }
-function updateSize(value){if(!win||closed||!anchor)return;const geometry=typeof value==='number'?{height:value,petTop}:value;if(!geometry||!Number.isFinite(geometry.height)||!Number.isFinite(geometry.petTop))return;petTop=geometry.petTop;const area=screen.getDisplayMatching(win.getBounds()).workArea;win.setBounds(overlayBounds(anchor,geometry,area),false);}
+function updateSize(value){if(!win||closed||!anchor)return;const geometry=typeof value==='number'?{height:value,petTop}:value;if(!geometry||!Number.isFinite(geometry.height)||!Number.isFinite(geometry.petTop))return;petTop=geometry.petTop;const area=nativeArea(anchorDisplay());const next=overlayBounds(anchor,geometry,area),previous=win.getBounds();if(['x','y','width','height'].some(key=>previous[key]!==next[key]))win.setBounds(next,false);publishLayout();}
 function validZones(value){return Array.isArray(value)?value.slice(0,100).filter(rect=>['x','y','width','height'].every(key=>Number.isFinite(rect[key]))&&rect.width>=0&&rect.height>=0):[];}
-function endDrag(){
+function endDrag(id){
+ if(typeof id==='string'&&drag?.id!==id)return;
  leftPressed=false;const completed=drag;drag=undefined;
- if(!win||closed)return;win.webContents.send('pet:message',{type:'drag-ended'});
+ if(!win||closed)return;if(completed)win.webContents.send('pet:message',{type:'drag-ended',id:completed.id});
  if(!completed?.moved)return;
- const bounds=win.getBounds(),display=screen.getDisplayMatching(bounds),area=display.workArea,petWidth=snapshot?.config?.size||120;
+ const bounds=win.getBounds(),display=anchorDisplay(),area=nativeArea(display),petWidth=snapshot?.config?.size||120;
  emit({type:'config',value:{desktopPosition:{screen:'display:'+display.id,x:Math.max(0,Math.min(1,(bounds.x+(bounds.width-petWidth)/2-area.x)/Math.max(1,area.width-petWidth))),y:Math.max(0,Math.min(1,(bounds.y+petTop-area.y)/Math.max(1,area.height-petWidth*208/192)))}}});
 }
-function beginDrag(){
- if(!leftPressed){win.webContents.send('pet:message',{type:'drag-ended'});return;}
- if(!drag){win.setIgnoreMouseEvents(false);drag={cursor:screen.getCursorScreenPoint(),bounds:win.getBounds(),started:Date.now(),fixture};}
+function beginDrag(id){
+ if(!leftPressed){win.webContents.send('pet:message',{type:'drag-ended',id});return;}
+ if(!drag){win.setIgnoreMouseEvents(false);drag={id,cursor:screen.getCursorScreenPoint(),bounds:win.getBounds(),started:Date.now(),fixture,anchor:{...anchor}};}
 }
 app.whenReady().then(()=>{
- win=new BrowserWindow({width:360,height:500,x:0,y:0,show:false,frame:false,transparent:true,backgroundColor:'#00000000',alwaysOnTop:true,skipTaskbar:true,resizable:false,hasShadow:false,title:'DSH Floating Pet',webPreferences:{preload:join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
+ win=new BrowserWindow({width:VIEWPORT_WIDTH,height:500,x:0,y:0,show:false,frame:false,transparent:true,backgroundColor:'#00000000',alwaysOnTop:true,skipTaskbar:true,resizable:false,hasShadow:false,title:'DSH Floating Pet',webPreferences:{preload:join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
  win.setAlwaysOnTop(true,'floating');win.setIgnoreMouseEvents(true,{forward:true});
  win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',event=>event.preventDefault());
  win.webContents.session.setPermissionRequestHandler((_contents,_permission,callback)=>callback(false));
@@ -52,9 +56,9 @@ app.whenReady().then(()=>{
  }
  ipcMain.on('pet:zones',(event,value)=>{if(owner(event))zones=validZones(value);});
  ipcMain.on('pet:height',(event,value)=>{if(owner(event))updateSize(value);});
- ipcMain.on('pet:drag',(event,active)=>{
-  if(!owner(event))return;
-  if(active===true)beginDrag();else endDrag();
+ ipcMain.on('pet:drag',(event,value)=>{
+  if(!owner(event)||!value||typeof value.id!=='string'||!/^[a-f0-9-]{36}$/.test(value.id))return;
+  if(value.active===true)beginDrag(value.id);else endDrag(value.id);
  });
  ipcMain.on('pet:event',(event,value)=>{if(!owner(event)||!value||typeof value!=='object')return;if(['shown','command','settings','config','native-error'].includes(value.type))emit(value);});
  win.webContents.on('did-finish-load',()=>{pageReady=true;ready();});
@@ -64,13 +68,15 @@ app.whenReady().then(()=>{
   if(value.type==='snapshot'){
    const first=!snapshot,previous=snapshot?.config?.desktopPosition,previousSize=snapshot?.config?.size;snapshot=value;if(value.image)currentImage=value.image;value={...value,image:currentImage};
    if(first||previousSize!==value.config?.size||JSON.stringify(previous)!==JSON.stringify(value.config?.desktopPosition))win.setBounds(placement(win.getBounds().height),false);
-   win.webContents.send('pet:message',value);win.webContents.send('pet:message',{type:'layout',above:layoutAbove});if(value.config?.visible!==false){if(!win.isVisible())win.showInactive();}else win.hide();
+   win.webContents.send('pet:message',value);publishLayout();if(value.config?.visible!==false){if(!win.isVisible())win.showInactive();}else win.hide();
   }else if(value.type==='inspect'){
-   try{const state=await win.webContents.executeJavaScript('window.__petInspect()');const screenshot=await win.webContents.capturePage();emit({type:'inspection',id:value.id,pid:process.pid,nativeDragging:!!drag,visible:win.isVisible(),focused:win.isFocused(),topmost:win.isAlwaysOnTop(),bounds:win.getBounds(),workArea:screen.getDisplayMatching(win.getBounds()).workArea,scale:screen.getDisplayMatching(win.getBounds()).scaleFactor,image:screenshot.toPNG().toString('base64'),...state});}catch(error){emit({type:'native-error',error:error.message});}
+   try{const state=await win.webContents.executeJavaScript('window.__petInspect()');const screenshot=await win.webContents.capturePage();emit({type:'inspection',id:value.id,pid:process.pid,nativeDragging:!!drag,visible:win.isVisible(),focused:win.isFocused(),topmost:win.isAlwaysOnTop(),bounds:win.getBounds(),workArea:nativeArea(anchorDisplay()),scale:anchorDisplay().scaleFactor,image:screenshot.toPNG().toString('base64'),...state});}catch(error){emit({type:'native-error',error:error.message});}
   }else if(value.type==='fixture-ui'&&fixture){
    if(value.action==='blur'){const focusSink=new BrowserWindow({width:180,height:80,show:true,frame:false,skipTaskbar:true,title:'Pet test focus fixture',webPreferences:{sandbox:true}});focusSink.focus();setTimeout(()=>focusSink.destroy(),250);}
    else if(value.action==='drag-start'){win.focus();win.setIgnoreMouseEvents(false);const state=await win.webContents.executeJavaScript('window.__petInspect()');const rect=state.petBounds;win.webContents.sendInputEvent({type:'mouseDown',button:'left',x:Math.round(rect.x+rect.width/2),y:Math.round(rect.y+rect.height/2),clickCount:1});}
    else if(value.action==='drag-native-up')win.webContents.emit('before-mouse-event',{}, {type:'mouseUp',button:'left'});
+   else if(value.action==='drag-stale'){const old='00000000-0000-0000-0000-000000000000';endDrag(old);win.webContents.send('pet:message',{type:'drag-ended',id:old});}
+   else if(value.action==='reply-hover'){const rect=await win.webContents.executeJavaScript('document.querySelector(".notice-actions .round").getBoundingClientRect().toJSON()');win.webContents.sendInputEvent({type:'mouseMove',x:Math.round(rect.x+rect.width/2),y:Math.round(rect.y+rect.height/2)});}
    else if(value.action==='drag-reset'){win.webContents.sendInputEvent({type:'mouseUp',button:'left',x:0,y:0,clickCount:1});win.webContents.sendInputEvent({type:'mouseMove',x:0,y:0});}
    else if(value.action==='drag-escape')win.webContents.sendInputEvent({type:'keyDown',keyCode:'Escape'});
    else win.webContents.send('pet:message',value);
@@ -79,10 +85,10 @@ app.whenReady().then(()=>{
  });
  const pointer=setInterval(()=>{
   if(closed||!win)return;const cursor=screen.getCursorScreenPoint(),bounds=win.getBounds();
-  if(drag){if(Date.now()-drag.started>30000){endDrag();return;}if(drag.fixture)return;const dx=cursor.x-drag.cursor.x,dy=cursor.y-drag.cursor.y;if(!drag.moved&&Math.abs(dx)<4&&Math.abs(dy)<4)return;drag.moved=true;const area=screen.getDisplayNearestPoint(cursor).workArea;win.setPosition(Math.round(Math.max(area.x,Math.min(area.x+area.width-bounds.width,drag.bounds.x+dx))),Math.round(Math.max(area.y,Math.min(area.y+area.height-bounds.height,drag.bounds.y+dy))),false);const moved=win.getBounds();if(anchor){anchor.x=moved.x+(moved.width-anchor.size)/2;anchor.y=moved.y+petTop;}win.webContents.send('pet:message',{type:'drag-motion',dx});return;}
+  if(drag){if(Date.now()-drag.started>30000){endDrag();return;}if(drag.fixture)return;const dx=cursor.x-drag.cursor.x,dy=cursor.y-drag.cursor.y;if(!drag.moved&&Math.abs(dx)<4&&Math.abs(dy)<4)return;drag.moved=true;const area=nativeArea(screen.getDisplayNearestPoint(cursor));anchor=constrainPet({...drag.anchor,x:drag.anchor.x+dx,y:drag.anchor.y+dy},area);layoutAbove=anchor.y+anchor.size*208/192/2>area.y+area.height/2;win.setBounds(overlayBounds(anchor,{height:bounds.height,petTop},area),false);publishLayout();win.webContents.send('pet:message',{type:'drag-motion',dx});return;}
   const x=cursor.x-bounds.x,y=cursor.y-bounds.y;
   const within=rect=>x>=rect.x&&y>=rect.y&&x<rect.x+rect.width&&y<rect.y+rect.height;
-  const hover=zones.some(rect=>rect.hover&&within(rect));if(hover!==lastHover){lastHover=hover;win.webContents.send('pet:message',{type:'hover-region',hover});}
+  const hover=zones.some(rect=>rect.hover&&Math.hypot(Math.max(rect.x-x,0,x-rect.x-rect.width),Math.max(rect.y-y,0,y-rect.y-rect.height))<=(lastHover?56:40));if(hover!==lastHover){lastHover=hover;win.webContents.send('pet:message',{type:'hover-region',hover});}
   const hit=zones.some(rect=>{if(rect.hover||!within(rect))return false;if(!rect.mask)return true;const px=Math.floor((x-rect.x)/rect.width*192),py=Math.floor((y-rect.y)/rect.height*208),i=py*192+px,mask=Buffer.from(rect.mask,'base64');return !!(mask[i>>3]&(1<<(i&7)));});
   win.setIgnoreMouseEvents(!hit,{forward:true});
  },40);

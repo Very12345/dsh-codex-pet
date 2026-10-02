@@ -7504,6 +7504,7 @@
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { d: "M9 8a3 3 0 1 1 4 3c-1 1-1 2-1 3M12 17h.01" })
   ] }) };
   function Icon({ name }) {
+    if (name === "reply") return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("svg", { viewBox: "0 0 20 20", "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { d: "M15.8 5.8v3.4c0 1.1-.6 1.7-1.7 1.7H4.4m3.1-3.3-3.2 3.2 3.2 3.2", strokeWidth: "1.33" }) });
     return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("svg", { viewBox: "0 0 24 24", "aria-hidden": "true", children: paths[name] });
   }
   function NoticeCard({ item, command, showRequest, t, drafts }) {
@@ -7555,7 +7556,7 @@
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: item.tool ? status : item.preview || status })
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "notice-actions", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { className: "round", title: item.request ? t("\u5904\u7406\u8BF7\u6C42", "Respond to request") : t("\u56DE\u590D\u4F1A\u8BDD", "Reply to conversation"), onClick: () => item.request ? showRequest() : expanded && draft.trim() ? void send() : openReply(), children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Icon, { name: item.request ? "question" : "reply" }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { className: "round", "aria-pressed": expanded, title: item.request ? t("\u5904\u7406\u8BF7\u6C42", "Respond to request") : t("\u56DE\u590D\u4F1A\u8BDD", "Reply to conversation"), onClick: () => item.request ? showRequest() : expanded && draft.trim() ? void send() : openReply(), children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Icon, { name: item.request ? "question" : "reply" }) }),
           item.pose === "running" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { className: "round", title: t("\u505C\u6B62", "Stop"), onClick: () => void command({ type: "stop", id: item.id, token: item.token }).catch((cause) => setError(String(cause))), children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Icon, { name: "stop" }) }) : null
         ] })
       ] }),
@@ -7578,13 +7579,13 @@
   function App() {
     const [state, setState] = (0, import_react2.useState)(latest), [collapsed, setCollapsed] = (0, import_react2.useState)(false), [compose, setCompose] = (0, import_react2.useState)(false), [draft, setDraft] = (0, import_react2.useState)(""), [files, setFiles] = (0, import_react2.useState)([]), [error, setError] = (0, import_react2.useState)(""), [voice, setVoice] = (0, import_react2.useState)("idle"), [busy, setBusy] = (0, import_react2.useState)(false), [menu, setMenu] = (0, import_react2.useState)(false), [request, setRequest] = (0, import_react2.useState)(null), [transient, setTransient] = (0, import_react2.useState)(null), [hover, setHover] = (0, import_react2.useState)(false), [cell, setCell] = (0, import_react2.useState)({ row: 0, column: 0, duration: 1 });
     const shell = (0, import_react2.useRef)(null), pet = (0, import_react2.useRef)(null), input = (0, import_react2.useRef)(null), started = (0, import_react2.useRef)(performance.now()), lastPose = (0, import_react2.useRef)(""), dragging = (0, import_react2.useRef)(false), pending = (0, import_react2.useRef)(""), pixels = (0, import_react2.useRef)(null), replies = (0, import_react2.useRef)(/* @__PURE__ */ new Map());
-    const [controls, setControls] = (0, import_react2.useState)(false), [above, setAbove] = (0, import_react2.useState)(false);
+    const [controls, setControls] = (0, import_react2.useState)(false), [above, setAbove] = (0, import_react2.useState)(false), [panelOffsetX, setPanelOffsetX] = (0, import_react2.useState)(0);
     const hoverTimer = (0, import_react2.useRef)(), replyDrafts = (0, import_react2.useRef)(/* @__PURE__ */ new Map());
-    const captureId = (0, import_react2.useRef)(null);
+    const captureId = (0, import_react2.useRef)(null), dragToken = (0, import_react2.useRef)("");
     const endDrag = () => {
       if (!dragging.current) return;
       dragging.current = false;
-      bridge.drag(false);
+      bridge.drag(false, dragToken.current);
       setTransient(null);
       const id = captureId.current;
       captureId.current = null;
@@ -7620,15 +7621,17 @@
     (0, import_react2.useEffect)(() => {
       const listener = (value) => {
         if (value.type === "snapshot") setState(value);
-        else if (value.type === "layout") setAbove(!!value.above);
-        else if (value.type === "hover-region") {
+        else if (value.type === "layout") {
+          setAbove(!!value.above);
+          setPanelOffsetX(value.panelOffsetX || 0);
+        } else if (value.type === "hover-region") {
           clearTimeout(hoverTimer.current);
           if (value.hover) setControls(true);
-          else hoverTimer.current = setTimeout(() => setControls(false), 180);
+          else hoverTimer.current = setTimeout(() => setControls(false), 300);
         } else if (value.type === "window-blur") {
           endDragRef.current();
           dismissRef.current();
-        } else if (value.type === "drag-ended") endDragRef.current();
+        } else if (value.type === "drag-ended" && value.id === dragToken.current) endDragRef.current();
         else if (value.type === "drag-motion") {
           if (value.dx >= 4) setTransient("running-right");
           else if (value.dx <= -4) setTransient("running-left");
@@ -7720,6 +7723,13 @@
         const rectangles = Array.from(shell.current.querySelectorAll("[data-hit],[data-hover]")).filter((element) => element.offsetWidth && element.offsetHeight).map((element) => {
           const rect = element.getBoundingClientRect();
           const result = { x: rect.x, y: rect.y, width: rect.width, height: rect.height, hover: element.hasAttribute("data-hover") };
+          if (result.hover && pet.current) {
+            const mascot = pet.current.getBoundingClientRect();
+            result.x = mascot.x;
+            result.y = mascot.y;
+            result.width = mascot.width;
+            result.height = mascot.height + 50;
+          }
           if (element === pet.current && pixels.current) {
             const bytes = new Uint8Array(192 * 208 / 8), data = pixels.current;
             for (let y = 0; y < 208; y++) for (let x = 0; x < 192; x++) {
@@ -7737,7 +7747,7 @@
       observer.observe(shell.current);
       report();
       return () => observer.disconnect();
-    }, [state, cell, compose, collapsed, menu, request, controls, above]);
+    }, [state, cell, compose, collapsed, menu, request, controls, above, panelOffsetX]);
     (0, import_react2.useEffect)(() => {
       if (!state?.id) return;
       const ready = () => requestAnimationFrame(() => bridge.emit({ type: "shown", id: state.id }));
@@ -7780,8 +7790,8 @@
       return () => document.removeEventListener("pointerdown", outside, true);
     }, [compose]);
     (0, import_react2.useEffect)(() => {
-      window.__petInspect = () => ({ pose, cell, above, controls, rendererDragging: dragging.current, toolbarButtonCount: document.querySelectorAll(".toolbar button").length, collapsed, composerVisible: compose && !collapsed, composerText: draft, noticesVisible: !collapsed && items.length > 0, petBounds: pet.current?.getBoundingClientRect().toJSON(), toolbarBounds: document.querySelector(".toolbar")?.getBoundingClientRect().toJSON(), noticeBounds: document.querySelector(".notice")?.getBoundingClientRect().toJSON(), noticePreview: document.querySelector(".notice-copy")?.textContent, replyVisible: !!document.querySelector(".follow-up") });
-    }, [pose, cell, above, controls, collapsed, compose, draft, items.length]);
+      window.__petInspect = () => ({ pose, cell, above, controls, panelOffsetX, toolbarAppearance: document.querySelector(".toolbar") ? { width: document.querySelector(".toolbar").getBoundingClientRect().width, height: document.querySelector(".toolbar").getBoundingClientRect().height } : null, replyStyle: document.querySelector(".notice-actions .round") ? { color: getComputedStyle(document.querySelector(".notice-actions .round")).color, background: getComputedStyle(document.querySelector(".notice-actions .round")).backgroundColor, iconWidth: document.querySelector(".notice-actions .round svg")?.getBoundingClientRect().width } : null, rendererDragging: dragging.current, toolbarButtonCount: document.querySelectorAll(".toolbar button").length, collapsed, composerVisible: compose && !collapsed, composerText: draft, noticesVisible: !collapsed && items.length > 0, petBounds: pet.current?.getBoundingClientRect().toJSON(), toolbarBounds: document.querySelector(".toolbar")?.getBoundingClientRect().toJSON(), noticeBounds: document.querySelector(".notice")?.getBoundingClientRect().toJSON(), noticePreview: document.querySelector(".notice-copy")?.textContent, replyVisible: !!document.querySelector(".follow-up") });
+    }, [pose, cell, above, controls, panelOffsetX, collapsed, compose, draft, items.length]);
     const openComposer = () => {
       setCompose(true);
       setCollapsed(false);
@@ -7803,15 +7813,16 @@
       pending.current = action({ type: "send-message", text: draft, files });
     };
     if (!state) return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "shell", ref: shell });
-    return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "shell " + (above ? "above " : "") + (state.theme === "dark" ? "dark" : ""), ref: shell, children: [
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "shell " + (above ? "above " : "") + (state.theme === "dark" ? "dark" : ""), ref: shell, style: { "--panel-offset-x": panelOffsetX + "px" }, children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "mascot-group", "data-hover": true, children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { ref: pet, "data-hit": true, className: "pet", "aria-label": t("\u60AC\u6D6E\u5BA0\u7269", "Floating pet"), style: { width: size, height: size * 208 / 192, backgroundImage: "url(data:image/png;base64," + state.image + ")", backgroundSize: `${size * 8}px ${size * 208 / 192 * (state.version === 2 ? 11 : 9)}px`, backgroundPosition: `${-cell.column * size}px ${-cell.row * size * 208 / 192}px` }, onPointerEnter: () => setHover(true), onPointerLeave: () => setHover(false), onPointerDown: (event) => {
           if (event.button !== 0 || dragging.current) return;
           dragging.current = true;
+          dragToken.current = crypto.randomUUID();
           captureId.current = event.pointerId;
           try {
             event.currentTarget.setPointerCapture(event.pointerId);
-            bridge.drag(true);
+            bridge.drag(true, dragToken.current);
           } catch {
             endDrag();
           }
@@ -7825,7 +7836,7 @@
           event.preventDefault();
           setMenu(!menu);
         } }),
-        !compose || collapsed ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "toolbar-slot", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "toolbar " + (controls ? "expanded" : "compact"), style: { width: controls ? items.length ? 120 : 80 : 32 }, "data-hit": true, children: controls ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+        !compose || collapsed ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "toolbar-slot", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "toolbar " + (controls ? "expanded" : "compact"), style: { width: controls ? items.length ? 120 : 80 : 17 }, "data-hit": true, children: controls ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { title: t("\u65B0\u5BF9\u8BDD", "New conversation"), onClick: openComposer, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Icon, { name: "new" }) }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { title: t("\u8BED\u97F3\u8F93\u5165", "Voice input"), className: voice === "recording" ? "recording" : "", onClick: () => {
             setCompose(true);

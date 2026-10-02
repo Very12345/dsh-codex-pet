@@ -22,6 +22,10 @@
 
 ## 运行与边界
 
+0.2.6 再核对原生窗口布局与主题参数：原版以宠物帧本体约束横向位置，而透明绘制窗口可跨出显示器；消息另设 12px 边距。纵向使用工作区顶部到显示器底部（含任务栏区域），底部保留 8px 与 32px 工具区，取代本 fork 曾用的 96px。DSH 的透明画布独立扩为 768px，保证卡片向内偏移后不被自身窗口裁切；宠物大小仍尊重已有设置。
+
+折叠控件按参考值 17×6px、圆角 6.5px、折叠延迟 300ms；鼠标接近/离开阈值 40/56px。回复按钮为 32px、20px 肘形回转箭头；浅色默认底色 #e8e8e8、图标 #9f9f9f，悬停底色 #afafaf、图标白色；输入框底色 #dfdfdf、圆角 24px、行高 16px。参数按本地参考重写，未分发原应用的窗口管理器或会话代码。靠底部时输入面板翻到宠物上方，避免新增聊天输入框缩小宠物移动范围。
+
 0.2.5 修复独立浮窗的拖动结束缺口：DOM 捕获丢失、取消、全窗口抬起、失焦和 Esc 均清理拖动；主进程同时检查鼠标释放与 Windows 捕获/取消消息，不再只依赖宠物节点上的 pointer-up。单次拖动上限 30 秒。窗口层使用公开的 [Electron Windows 消息接口](https://www.electronjs.org/docs/latest/api/base-window#winhookwindowmessagemessage-callback-windows) 和 [鼠标事件接口](https://www.electronjs.org/docs/latest/api/web-contents#event-before-mouse-event)，不安装全局鼠标钩子。
 
 浮窗使用用户配置的 Electron 可执行文件或 `~/.dsh/electron` 共享运行时，不引用其他宠物插件的应用代码。Windows Electron 无法可靠读取 piped stdin，父进程向浮窗发送消息改为随机令牌认证的 loopback 连接；子进程事件保留 stdout JSON，断线与父进程退出时关闭窗口。

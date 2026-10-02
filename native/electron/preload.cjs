@@ -4,7 +4,7 @@ contextBridge.exposeInMainWorld('petDesktop',Object.freeze({
  emit(value){ipcRenderer.send('pet:event',value);},
  focus(){ipcRenderer.send('pet:focus');},
  hitZones(value){ipcRenderer.send('pet:zones',value);},
- drag(active){ipcRenderer.send('pet:drag',active);},
+ drag(active,id){ipcRenderer.send('pet:drag',{active,id});},
  resize(height){ipcRenderer.send('pet:height',height);},
  chooseFiles(){return ipcRenderer.invoke('pet:files');}
 }));

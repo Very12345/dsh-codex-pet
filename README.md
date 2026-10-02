@@ -2,7 +2,7 @@
 
 [简体中文](README.zh-CN.md)
 
-An independent fork of [MichengAI/dsh-codex-pet](https://github.com/MichengAI/dsh-codex-pet), based on upstream 0.1.12. Fork version **0.2.5** adds a native Windows floating companion outside the DSH window.
+An independent fork of [MichengAI/dsh-codex-pet](https://github.com/MichengAI/dsh-codex-pet), based on upstream 0.1.12. Fork version **0.2.6** adds a native Windows floating companion outside the DSH window.
 
 ## Features
 
@@ -14,6 +14,7 @@ An independent fork of [MichengAI/dsh-codex-pet](https://github.com/MichengAI/ds
 - Hold the left button to drag; release or Escape ends dragging. Capture loss and focus loss also stop it, with a 30-second upper bound. Double-click to jump and right-click for settings or returning to page display. Transparent pixels pass mouse input through.
 - Nine built-in pets, custom sprites, animations and existing multi-task notifications. Open a task, stop a turn, dismiss a reminder or respond to supported approvals, questions and plans.
 - Per-display position persistence, DPI scaling and a primary-display fallback when the saved monitor is missing.
+- The mascot can reach the left/right/top display edges independently of its transparent canvas. Readable panels shift inward; the bottom retains the reference control reserve.
 - Display is claimed only after the native frame is painted. A failed helper restores the page companion. Host exit, plugin disposal or a disconnected owner closes the native windows.
 
 ## Requirements
@@ -55,7 +56,7 @@ npm pack --dry-run --ignore-scripts
 
 Windows browser tests default to Edge (`DSH_PET_BROWSER_CHANNEL` overrides it). Fixtures use temporary data and fake sessions, never real user approvals. Native screenshots capture only the helper's own sprite under ignored `.preview/`.
 
-Validation includes 62 automated tests, page notifications and localization, native transparency/topmost/non-activation, 200% DPI, hidden-page continuity, approval transport, page fallback and process cleanup. Native macOS/Linux and all older desktop host combinations are unverified.
+Validation includes 63 automated tests, page notifications and localization, native transparency/topmost/non-activation, 200% DPI, hidden-page continuity, approval transport, page fallback and process cleanup. Native macOS/Linux and all older desktop host combinations are unverified.
 
 Actions are disabled for this fork. Push after local validation; upstream workflow history is retained without enabling automated publishing.
 

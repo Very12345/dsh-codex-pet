@@ -12,7 +12,8 @@ try{
  const petScreenY=state.bounds.y+state.petBounds.y;
  for(const action of ['drag-loss','drag-cancel','drag-native-up','drag-escape','blur']){
   host.desktop['send']({type:'fixture-ui',action:'drag-start'});await new Promise(resolve=>setTimeout(resolve,80));
-  const active=await host.desktop.inspect();assert.equal(active.nativeDragging,true,'native drag should start before '+action);assert.equal(active.rendererDragging,true);
+  let active=await host.desktop.inspect();const dragDeadline=Date.now()+1500;while((!active.nativeDragging||!active.rendererDragging)&&Date.now()<dragDeadline){await new Promise(resolve=>setTimeout(resolve,40));active=await host.desktop.inspect();}assert.equal(active.nativeDragging,true,'native drag should start before '+action);assert.equal(active.rendererDragging,true);
+  if(action==='drag-loss'){host.desktop['send']({type:'fixture-ui',action:'drag-stale'});await new Promise(resolve=>setTimeout(resolve,80));const retained=await host.desktop.inspect();assert.equal(retained.nativeDragging,true);assert.equal(retained.rendererDragging,true,'old drag acknowledgements must not cancel a newer drag');}
   host.desktop['send']({type:'fixture-ui',action});await new Promise(resolve=>setTimeout(resolve,action==='blur'?300:100));
   const stopped=await host.desktop.inspect();assert.equal(stopped.nativeDragging,false,action+' clears native drag');assert.equal(stopped.rendererDragging,false,action+' clears renderer capture');
   await new Promise(resolve=>setTimeout(resolve,120));assert.deepEqual((await host.desktop.inspect()).bounds,stopped.bounds,action+' leaves position stable');
@@ -42,9 +43,18 @@ try{
  host.desktop['send']({type:'fixture-ui',action:'new'});await new Promise(resolve=>setTimeout(resolve,120));host.desktop['send']({type:'fixture-ui',action:'outside'});await new Promise(resolve=>setTimeout(resolve,120));
  const top=await host.desktop.inspect();assert.equal(top.above,false);assert.ok(top.noticeBounds.y>top.petBounds.y);assert.ok(top.noticePreview.includes('它通常形容'));
  await writeFile('.preview/electron-top-notice.png',Buffer.from(top.image,'base64'));
- host.desktop['send']({type:'fixture-ui',action:'reply',id:'fixture'});await new Promise(resolve=>setTimeout(resolve,120));const reply=await host.desktop.inspect();assert.equal(reply.replyVisible,true);await writeFile('.preview/electron-follow-up.png',Buffer.from(reply.image,'base64'));
+ host.desktop['send']({type:'fixture-ui',action:'reply',id:'fixture'});await new Promise(resolve=>setTimeout(resolve,120));const reply=await host.desktop.inspect();assert.equal(reply.replyVisible,true);assert.equal(reply.replyStyle.iconWidth,20);assert.equal(reply.replyStyle.color,'rgb(159, 159, 159)');assert.equal(reply.replyStyle.background,'rgb(232, 232, 232)');await writeFile('.preview/electron-follow-up.png',Buffer.from(reply.image,'base64'));
+ host.desktop['send']({type:'fixture-ui',action:'reply-hover'});await new Promise(resolve=>setTimeout(resolve,150));const hoverReply=await host.desktop.inspect();assert.equal(hoverReply.replyStyle.color,'rgb(255, 255, 255)');assert.equal(hoverReply.replyStyle.background,'rgb(175, 175, 175)');await writeFile('.preview/electron-reply-hover.png',Buffer.from(hoverReply.image,'base64'));
  await host.desktop.publish(token,{spriteKey:pet.url,language:'zh-CN',theme:'light',notifications:{activity:{pose:'idle'},items:[],hidden:0}});
  host.desktop['send']({type:'fixture-ui',action:'hover',hover:true});await new Promise(resolve=>setTimeout(resolve,120));assert.equal((await host.desktop.inspect()).toolbarButtonCount,2);
- host.desktop['send']({type:'fixture-ui',action:'hover',hover:false});await new Promise(resolve=>setTimeout(resolve,120));const compact=await host.desktop.inspect();assert.equal(compact.toolbarButtonCount,0);await writeFile('.preview/electron-idle-compact.png',Buffer.from(compact.image,'base64'));
+ host.desktop['send']({type:'fixture-ui',action:'hover',hover:false});await new Promise(resolve=>setTimeout(resolve,300));const compact=await host.desktop.inspect();assert.equal(compact.toolbarButtonCount,0);assert.deepEqual(compact.toolbarAppearance,{width:17,height:6});await writeFile('.preview/electron-idle-compact.png',Buffer.from(compact.image,'base64'));
+ for(const x of [0,1]){
+  await host.library.update({desktopPosition:{screen:'display:fixture',x,y:0}});
+  await host.desktop.publish(token,{spriteKey:pet.url,language:'zh-CN',theme:'light',notifications:{activity:{pose:'review'},items:[notice],hidden:0}});await new Promise(resolve=>setTimeout(resolve,150));
+  const edge=await host.desktop.inspect(),petX=edge.bounds.x+edge.petBounds.x,noticeX=edge.bounds.x+edge.noticeBounds.x;
+  assert.ok(Math.abs(petX-(x?edge.workArea.x+edge.workArea.width-edge.petBounds.width:edge.workArea.x))<=1);assert.equal(edge.bounds.y+edge.petBounds.y,edge.workArea.y);
+  assert.ok(noticeX>=edge.workArea.x+11&&noticeX+edge.noticeBounds.width<=edge.workArea.x+edge.workArea.width-11,'notification remains readable at either pet edge');
+  await writeFile('.preview/electron-edge-'+(x?'right':'left')+'.png',Buffer.from(edge.image,'base64'));
+ }
  console.log('actual Electron hover controls (2/3 actions), compact idle, top/bottom placement, stable pet anchor, reply preview/editor, outside-click/native blur and retained drafts PASS');
 }finally{host.dispose();await rm(directory,{recursive:true,force:true});}

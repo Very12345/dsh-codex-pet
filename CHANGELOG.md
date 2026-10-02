@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.6] - 2026-10-02
+
+- Constrain the mascot itself, allowing the transparent canvas to cross display edges; independently inset readable panels. Match the reference's vertical area and 40px bottom reserve instead of constraining a 360px window with 96px reserved.
+- Match measured compact controls (17×6px, 300ms dismissal, 40/56px proximity) and reply icon size, elbow shape, neutral/hover colors and follow-up input styling.
+- Keep drag acknowledgements scoped to their gesture identity; verify actual left/right/top placement, inward card offsets, computed styles and existing drag/session interactions.
+
 ## [0.2.5] - 2026-10-02
 
 - End native dragging on capture loss, pointer cancellation, mouse release, Escape, blur or hide. Clear the drag before releasing DOM capture and ignore late start requests after button release.
