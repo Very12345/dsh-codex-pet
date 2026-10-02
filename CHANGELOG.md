@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.4] - 2026-10-02
+
+- Collapse controls until hover; idle pets have two actions and tasks add the third. Flip notification placement above/below by mascot position while preserving its screen anchor.
+- Display visible assistant previews, tool-name fallbacks and completion marks with hover actions; add inline follow-up replies to the original session and round through native queue mode.
+- Verify retained reply previews, original-session routing and host denials; add native placement/hover/editor checks and real browser/host/helper follow-up integration.
+
 ## [0.2.3] - 2026-10-02
 
 - Correct directional animation targets: ordinary mouse movement no longer replaces idle/status animation; only the active floating editor caret supplies a gaze target.

@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import {createHost} from '../lib/index.js';
 if(process.platform!=='win32'){console.log('Desktop client smoke requires Windows');process.exit(0);}
 const dir=await mkdtemp(join(tmpdir(),'dsh-pet-floating-'));
-const host=await createHost({dataRoot:dir});
+const host=await createHost({dataRoot:dir,fixture:true});
 const server=createServer((req,res)=>void host.handler(req,res));
 await new Promise(done=>server.listen(0,'127.0.0.1',done));
 let browser;
@@ -26,7 +26,7 @@ try{
   const store=value=>({value,listeners:new Set(),getSnapshot(){return this.value},subscribe(fn){this.listeners.add(fn);return()=>this.listeners.delete(fn);},set(value){this.value=value;for(const fn of [...this.listeners])fn();}});
   window.fixtureStatus=store(new Map());window.list=store({ids:['fixture'],byId:{fixture:{id:'fixture',title:'独立桌面测试任务',running:true,retainedBy:{mainView:1}}}});
   window.live=store({running:true,lastAgentError:null});window.events=store({revision:0,change:{kind:'replace',entries:[]}});
-  window.disposers=[];window.locale=store({active:'zh-CN'});window.approved=[];
+  window.disposers=[];window.locale=store({active:'zh-CN'});window.approved=[];window.replies=[];live.prompt=async(content,mode)=>{replies.push({content,mode});return {ok:true};};
   petPlugin.apply({effect(fn){disposers.push(fn());},locale,sessions:{list,binding:()=>({session:live,eventSource:events})},uiWorkspace:{openSession(id){window.opened=id;}},uiSession:{sessionStatus:fixtureStatus},slots:{inject(name,fn){fn();},register(options,Component){if(options.name==='shell.overlay')renderPet(Component);return()=>{};}}});
  });
  const deadline=Date.now()+20000;
@@ -41,10 +41,17 @@ try{
  // Inject one owned helper event to exercise SSE -> actual DSH adapter -> ACK.
  host.desktop.child.stdout.emit('data',Buffer.from(JSON.stringify({type:'command',id:'fixture-click',command:{type:'approve',id:item.id,token:item.token,requestKey:item.request.key}})+'\n'));
  await page.waitForFunction(()=>approved.length===1);assert.deepEqual(await page.evaluate(()=>approved),['allowed-once']);
+ await page.evaluate(()=>{fixtureStatus.set(new Map());events.set({revision:1,entries:[{type:'event',event:{type:'assistant/message',data:{message:{content:[{type:'text',text:'Owned fixture assistant reply'}]}}}}],change:{kind:'append',entries:[]}});});
+ await page.waitForFunction(()=>dshPet.getSnapshot()?.notifications.items[0]?.preview==='Owned fixture assistant reply');
+ const previewDeadline=Date.now()+5000;while(!(await host.desktop.inspect()).noticePreview.includes('Owned fixture assistant reply')){if(Date.now()>previewDeadline)throw new Error('Reply preview bridge timed out');await new Promise(resolve=>setTimeout(resolve,100));}
+ host.desktop['send']({type:'fixture-ui',action:'reply',id:'fixture'});await new Promise(resolve=>setTimeout(resolve,150));
+ host.desktop['send']({type:'fixture-ui',action:'reply-text',id:'fixture',text:'Fixture follow-up, not a real session'});await new Promise(resolve=>setTimeout(resolve,100));
+ host.desktop['send']({type:'fixture-ui',action:'reply-send',id:'fixture'});await page.waitForFunction(()=>replies.length===1);
+ assert.deepEqual(await page.evaluate(()=>replies),[{content:[{type:'text',text:'Fixture follow-up, not a real session'}],mode:'queue'}]);
  await host.library.update({desktop:false});host.desktop.stop();
  await page.waitForSelector('.dcp-pet-button');assert.equal(host.desktop.running,false);
  await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:false});document.dispatchEvent(new Event('visibilitychange'));});
- console.log('real browser/host/native display ownership, hidden document, original approval response and page fallback PASS');
+ console.log('real browser/host/native display ownership, hidden document, original approval, assistant preview, native follow-up to the original session and page fallback PASS');
 }finally{
  await browser?.close();host.dispose();server.closeAllConnections();await new Promise(done=>server.close(done));await rm(dir,{recursive:true,force:true});
 }

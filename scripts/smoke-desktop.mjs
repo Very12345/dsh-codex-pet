@@ -8,12 +8,17 @@ try{
  await host.desktop.publish(token,{image,spriteKey:pet.url,language:'zh-CN',theme:'light',notifications:{activity:{pose:'running'},items:[{id:'fixture',token:'1',title:'阅读科研项目内容',pose:'running',text:'正在思考'}],hidden:0}});
  await new Promise(resolve=>setTimeout(resolve,400));
  const state=await host.desktop.inspect();assert.equal(state.visible,true);assert.equal(state.topmost,true);assert.equal(state.noticesVisible,true);
+ assert.equal(state.above,true);assert.ok(state.noticeBounds.y<state.petBounds.y,'bottom pet displays notifications above');
+ const petScreenY=state.bounds.y+state.petBounds.y;
+ host.desktop['send']({type:'fixture-ui',action:'hover',hover:true});await new Promise(resolve=>setTimeout(resolve,120));
+ const hovered=await host.desktop.inspect();assert.equal(hovered.toolbarButtonCount,3);
  assert.ok(state.cell.row<9,'ordinary cursor positions must not replace the idle/status animation with a gaze frame');
  await writeFile('.preview/electron-expanded.png',Buffer.from(state.image,'base64'));
  console.log(JSON.stringify({bounds:state.bounds,cell:state.cell,scale:state.scale}));
  host.desktop['send']({type:'fixture-ui',action:'new'});await new Promise(resolve=>setTimeout(resolve,200));
  const draft=await host.desktop.inspect();assert.equal(draft.composerVisible,true);await writeFile('.preview/electron-composer.png',Buffer.from(draft.image,'base64'));
  assert.equal(draft.toolbarBounds,undefined);assert.ok(draft.petBounds);
+ assert.ok(Math.abs(draft.bounds.y+draft.petBounds.y-petScreenY)<=1,'expanding the composer preserves pet position');
  host.desktop['send']({type:'fixture-ui',action:'text',text:'未发送的测试草稿'});await new Promise(resolve=>setTimeout(resolve,100));
  host.desktop['send']({type:'fixture-ui',action:'outside'});await new Promise(resolve=>setTimeout(resolve,150));
  const outside=await host.desktop.inspect();assert.equal(outside.composerVisible,false);assert.equal(outside.composerText,'未发送的测试草稿');assert.ok(outside.toolbarBounds);assert.ok(outside.cell.row<9);
@@ -22,5 +27,15 @@ try{
  host.desktop['send']({type:'fixture-ui',action:'blur'});await new Promise(resolve=>setTimeout(resolve,400));
  const blurred=await host.desktop.inspect();assert.equal(blurred.composerVisible,false);assert.equal(blurred.composerText,'未发送的测试草稿');assert.ok(blurred.toolbarBounds);
  host.desktop['send']({type:'fixture-ui',action:'collapse'});await new Promise(resolve=>setTimeout(resolve,100));const folded=await host.desktop.inspect();assert.equal(folded.collapsed,true);assert.equal(folded.composerVisible,false);
- console.log('actual Electron overlay, normal idle/status without global mouse gaze, outside-click/native blur dismissal, draft preservation and collapse PASS');
+ await host.library.update({desktopPosition:{screen:'display:fixture',x:.8,y:.1}});
+ const notice={id:'fixture',token:'2',title:'Respond to greeting',pose:'review',preview:'你是指“红温”这个网络用语吗？它通常形容一个人气到脸红、情绪上头。'};
+ await host.desktop.publish(token,{spriteKey:pet.url,language:'zh-CN',theme:'light',notifications:{activity:{pose:'review'},items:[notice],hidden:0}});
+ host.desktop['send']({type:'fixture-ui',action:'new'});await new Promise(resolve=>setTimeout(resolve,120));host.desktop['send']({type:'fixture-ui',action:'outside'});await new Promise(resolve=>setTimeout(resolve,120));
+ const top=await host.desktop.inspect();assert.equal(top.above,false);assert.ok(top.noticeBounds.y>top.petBounds.y);assert.ok(top.noticePreview.includes('它通常形容'));
+ await writeFile('.preview/electron-top-notice.png',Buffer.from(top.image,'base64'));
+ host.desktop['send']({type:'fixture-ui',action:'reply',id:'fixture'});await new Promise(resolve=>setTimeout(resolve,120));const reply=await host.desktop.inspect();assert.equal(reply.replyVisible,true);await writeFile('.preview/electron-follow-up.png',Buffer.from(reply.image,'base64'));
+ await host.desktop.publish(token,{spriteKey:pet.url,language:'zh-CN',theme:'light',notifications:{activity:{pose:'idle'},items:[],hidden:0}});
+ host.desktop['send']({type:'fixture-ui',action:'hover',hover:true});await new Promise(resolve=>setTimeout(resolve,120));assert.equal((await host.desktop.inspect()).toolbarButtonCount,2);
+ host.desktop['send']({type:'fixture-ui',action:'hover',hover:false});await new Promise(resolve=>setTimeout(resolve,120));const compact=await host.desktop.inspect();assert.equal(compact.toolbarButtonCount,0);await writeFile('.preview/electron-idle-compact.png',Buffer.from(compact.image,'base64'));
+ console.log('actual Electron hover controls (2/3 actions), compact idle, top/bottom placement, stable pet anchor, reply preview/editor, outside-click/native blur and retained drafts PASS');
 }finally{host.dispose();await rm(directory,{recursive:true,force:true});}

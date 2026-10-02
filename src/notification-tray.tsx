@@ -32,6 +32,7 @@ export function NotificationTray({ state, command, language }: TrayProps) {
   const [expanded, setExpanded] = useState(false), [detail, setDetail] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [latest, setLatest] = useState(false);
+  const [reply,setReply]=useState<{id:string;token:string}|null>(null),[drafts,setDrafts]=useState<Record<string,string>>({}),[replyBusy,setReplyBusy]=useState(false);
   const run = async (value: TrayCommand) => { setError(''); try { await command(value); } catch (e) { setError(e instanceof Error ? e.message : t('操作失败')); } };
   const visible = expanded ? state.items : state.items.slice(0, 1);
   if (state.items.length === 0) return null;
@@ -43,12 +44,13 @@ export function NotificationTray({ state, command, language }: TrayProps) {
       {visible.map(item => <article role="listitem" key={item.id} data-status={item.pose}>
         <button className="dcp-notice-dismiss" aria-label={t('关闭通知：{title}', { title: item.title })} title={t('关闭本轮提醒，任务继续运行')} onClick={() => void run({ type: 'dismiss', id: item.id, token: item.token })}><Cross2Icon /></button>
         <div className="dcp-notice-card">
-          <button className="dcp-bubble-link" title={item.title} onClick={() => void run({ type: 'open', id: item.id, token: item.token })}><strong>{item.title}</strong><span>{t(item.text)}</span></button>
+          <button className="dcp-bubble-link" title={item.title} onClick={() => void run({ type: 'open', id: item.id, token: item.token })}><strong>{item.pose==='review'?'✓ ':''}{item.title}</strong><span>{item.preview||t(item.text)}</span></button>
           <div className="dcp-notice-actions">
-            {item.request ? <button className="dcp-notice-action" aria-label={t('处理请求：{title}', { title: item.title })} title={t('查看并处理')} aria-expanded={detail === item.request.key} onClick={() => { setExpanded(true); setDetail(detail === item.request!.key ? null : item.request!.key); }}><QuestionMarkCircledIcon /></button> : <button className="dcp-notice-action" aria-label={t('回复会话：{title}', { title: item.title })} title={t('打开会话回复')} onClick={() => void run({ type: 'open', id: item.id, token: item.token })}><ResetIcon /></button>}
+            {item.request ? <button className="dcp-notice-action" aria-label={t('处理请求：{title}', { title: item.title })} title={t('查看并处理')} aria-expanded={detail === item.request.key} onClick={() => { setExpanded(true); setDetail(detail === item.request!.key ? null : item.request!.key); }}><QuestionMarkCircledIcon /></button> : <button className="dcp-notice-action" aria-label={t('回复会话：{title}', { title: item.title })} title={t('回复会话：{title}',{title:item.title})} onClick={() => setReply({id:item.id,token:item.token})}><ResetIcon /></button>}
             {item.pose === 'running' && <button className="dcp-notice-action" aria-label={t('停止当前轮次：{title}', { title: item.title })} title={t('停止当前轮次')} onClick={() => void run({ type: 'stop', id: item.id, token: item.token })}><StopIcon /></button>}
           </div>
         </div>
+        {reply?.id===item.id&&reply.token===item.token?<form className="dcp-follow-up" onSubmit={async event=>{event.preventDefault();const key=item.id+':'+item.token,text=drafts[key]||'';if(!text.trim()||replyBusy)return;setReplyBusy(true);setError('');try{await command({type:'reply',id:item.id,token:item.token,text});setDrafts(old=>({...old,[key]:''}));setReply(null);}catch(cause){setError(cause instanceof Error?cause.message:String(cause));}finally{setReplyBusy(false);}}}><textarea autoFocus rows={1} maxLength={10000} aria-label={t('回复会话：{title}',{title:item.title})} value={drafts[item.id+':'+item.token]||''} onChange={event=>setDrafts(old=>({...old,[item.id+':'+item.token]:event.target.value}))}/><button type="submit" disabled={replyBusy||!(drafts[item.id+':'+item.token]||'').trim()}>{t('发送')}</button></form>:null}
         {item.request && detail === item.request.key && <RequestForm key={item.request.key} item={item} command={command} language={language} />}
       </article>)}
     </div>

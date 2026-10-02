@@ -1,6 +1,7 @@
 /** 多会话通知与真实交互适配；不打开后台会话、不替用户作决定。 */
 import { IDLE, selectActivity, type Activity } from './model.ts';
 import { selectedSessionId, type Sessions, type Store } from './activity.ts';
+import {noticePreview,type NoticePreview} from './notice-preview.ts';
 export interface Question { id: string; question: string; detail?: string; options?: { label: string; description?: string }[]; multiSelect?: boolean }
 export interface Answers { answers: { id: string; selected: string[]; custom?: string }[] }
 export interface Pending {
@@ -10,10 +11,11 @@ export interface Pending {
 }
 export interface Notice extends Activity {
   id: string; token: string; updatedAt: number;
+  preview?:string;tool?:string;
   request?: { key: string; kind: string; toolName?: string; reason?: string; questions?: readonly Question[] };
 }
 export interface NotificationState { items: Notice[]; activity: Activity; hidden: number }
-export type NoticeCommand = { type: 'open'; id: string; token: string } | { type: 'dismiss'; id: string; token: string } | { type: 'approve' | 'reject' | 'answer'; id: string; token: string; requestKey: string; answers?: Answers } | { type: 'stop'; id: string; token: string } | { type: 'restore' };
+export type NoticeCommand = { type: 'open'; id: string; token: string } | {type:'reply';id:string;token:string;text:string} | { type: 'dismiss'; id: string; token: string } | { type: 'approve' | 'reject' | 'answer'; id: string; token: string; requestKey: string; answers?: Answers } | { type: 'stop'; id: string; token: string } | { type: 'restore' };
 type RecordState = { round: number; running: boolean; completion: boolean; error: string | null; revision: number; updatedAt: number; lastPose: string; requestKey?: string; awaitingStart?: boolean; finished?: string; snapshotError?: string | null; suppressStopCompletion?: boolean };
 const priority: Record<string, number> = { waiting: 0, failed: 1, review: 2, running: 3 };
 const lifetime: Record<string, number> = { failed: 3600000, waiting: 86400000, review: 604800000 };
@@ -37,6 +39,7 @@ export function createNotifications(sessions: Sessions, pending: Store<ReadonlyM
   const dismissed = new Map<string, string>();
   const busy = new Set<string>();
   const answered = new Set<string>();
+  const previews=new Map<string,NoticePreview>();
   let state: NotificationState = { items: [], activity: IDLE, hidden: 0 }, latestFirst = false;
   let publishing = false;
   let lastPublished = '';
@@ -48,7 +51,7 @@ export function createNotifications(sessions: Sessions, pending: Store<ReadonlyM
       const current = selectedSessionId(list);
       // 子代理由宿主路由管理，不能作为独立通知绑定或操作。
       const ids = new Set(list.ids.filter(id => list.byId[id] && list.byId[id].origin !== 'subagent'));
-      for (const id of records.keys()) if (!ids.has(id)) { records.delete(id); dismissed.delete(id); }
+      for (const id of records.keys()) if (!ids.has(id)) { records.delete(id); dismissed.delete(id); previews.delete(id); }
       for (const [id, bound] of bindings) if (!ids.has(id)) { bound.off(); bindings.delete(id); records.delete(id); dismissed.delete(id); }
       const items: Notice[] = []; let hidden = 0;
       for (const id of ids) {
@@ -71,9 +74,12 @@ export function createNotifications(sessions: Sessions, pending: Store<ReadonlyM
         const running = status?.running ?? (id === current ? snapshot?.running ?? row.running : row.running);
         if (running && !record.running) { record.round++; record.awaitingStart = true; record.finished = undefined; record.completion = false; record.error = null; record.suppressStopCompletion = false; record.updatedAt = now(); }
         const events = binding?.eventSource?.getSnapshot();
+        if(running&&!record.running)previews.delete(id);
+        if(events?.entries&&!record.awaitingStart)previews.set(id,noticePreview(events.entries.slice(-200)));
+        else if(events&&record.revision!==events.revision){const visible=noticePreview(events.change.entries??(events.change.entry?[events.change.entry]:[]));if(visible.text||visible.tool)previews.set(id,visible);}
         if (events && record.revision !== events.revision) {
           record.revision = events.revision;
-          if (events.change.kind === 'append') for (const entry of events.change.entries) {
+          if (events.change.kind === 'append') for (const entry of events.change.entries??[]) {
             if (entry.type !== 'event') continue;
             if (entry.event.type === 'turn/start') { if (!record.awaitingStart) record.round++; record.awaitingStart = false; record.finished = undefined; record.completion = false; record.error = null; }
             if (entry.event.type === 'turn/end') { record.finished = entry.event.data?.reason?.kind; record.completion = record.finished === 'completed'; record.updatedAt = now(); }
@@ -95,7 +101,7 @@ export function createNotifications(sessions: Sessions, pending: Store<ReadonlyM
         const token = `${record.round}:${request?.key ?? ''}`;
         if (dismissed.get(id) === token) { hidden++; continue; }
         const ttl = lifetime[activity.pose]; if (ttl && now() - record.updatedAt >= ttl) continue;
-        items.push({ ...activity, id, token, updatedAt: record.updatedAt, request: request && typeof request.key === 'string' ? { key: request.key, kind: String(request.kind), toolName: request.toolName, reason: request.reason, questions: request.questions } : undefined });
+        items.push({ ...activity, id, token, updatedAt: record.updatedAt, preview:previews.get(id)?.text||undefined,tool:previews.get(id)?.tool, request: request && typeof request.key === 'string' ? { key: request.key, kind: String(request.kind), toolName: request.toolName, reason: request.reason, questions: request.questions } : undefined });
       }
       items.sort((a, b) => (latestFirst ? 0 : priority[a.pose] - priority[b.pose]) || b.updatedAt - a.updatedAt || a.id.localeCompare(b.id));
       state = { items, hidden, activity: items[0] ?? IDLE };
@@ -113,6 +119,18 @@ export function createNotifications(sessions: Sessions, pending: Store<ReadonlyM
       const item = state.items.find(item => item.id === command.id && item.token === command.token);
       if (!item) throw new Error('这条通知已更新，请使用最新通知');
       if (command.type === 'dismiss') { dismissed.set(item.id, item.token); publish(); return; }
+      if(command.type==='reply'){
+        if(typeof command.text!=='string'||!command.text.trim()||command.text.length>10000)throw new Error('请输入 1–10000 字的消息');
+        if(busy.has(item.id))throw new Error('正在提交，请勿重复操作');
+        busy.add(item.id);
+        const send=async(session:{prompt?:NonNullable<NonNullable<ReturnType<Sessions['binding']>>['session']['prompt']>})=>{
+          if(!session.prompt)throw new Error('宿主未提供回复能力');
+          const result=await session.prompt([{type:'text',text:command.text}], 'queue');
+          if(!result.ok)throw new Error(result.error?.message??'回复失败');
+        };
+        try{const session=sessions.binding(item.id)?.session;if(session?.prompt)await send(session);else if(sessions.using)await sessions.using(item.id,{source:'controllerOperation'},async ref=>{await ref.ready;await send(ref.binding.session);});else throw new Error('会话尚未就绪，请打开后重试');}
+        finally{busy.delete(item.id);publish();}return;
+      }
       if (command.type === 'open') {
         if (!sessions.open) throw new Error('宿主未提供打开会话能力');
         sessions.open(item.id);

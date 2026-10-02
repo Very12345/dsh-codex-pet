@@ -4,7 +4,9 @@ export interface SessionRetainBy { mainView?: number }
 interface Summary { id: string; origin?: string; displayTitle?: string; title?: string; running: boolean; completed?: boolean; updatedAt?: number; pendingInteraction?: unknown; retainedBy?: SessionRetainBy }
 export interface SessionList { current?: string; ids: readonly string[]; byId: Record<string, Summary> }
 export interface SessionSnapshot { running: boolean; lastAgentError: string | null; promptError?: { error?: { message?: string } } | null }
-export interface EventWindow { revision: number; change: { kind: string; entries: readonly { type: string; event: { type: string; data?: { reason?: { kind: string } } } }[] } }
+export interface PresentationEvent {type:string;seq?:number;data?:{reason?:{kind:string};turn?:number;step?:number;name?:string;attemptId?:string;chunk?:{type:string;text?:string};message?:{content?:readonly {type:string;text?:string}[]}}}
+export interface PresentationEntry {type:string;event:PresentationEvent}
+export interface EventWindow {revision:number;entries?:readonly PresentationEntry[];change:{kind:string;entries:readonly PresentationEntry[];entry?:PresentationEntry}}
 export interface SessionStatusRow { running?: boolean; pendingInteraction?: unknown; completionUnread?: boolean }
 export interface Sessions {
   list: Store<SessionList>;
