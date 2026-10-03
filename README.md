@@ -71,7 +71,7 @@ npm pack --dry-run --ignore-scripts
 
 Windows browser tests default to Edge (`DSH_PET_BROWSER_CHANNEL` overrides it). Fixtures use temporary data and fake sessions, never real user approvals. Native screenshots capture only the helper's own sprite under ignored `.preview/`.
 
-Validation includes 82 automated tests, page notifications and localization, native transparency/topmost/non-activation, 200% DPI, hidden-page continuity, approval transport, page fallback and process cleanup. The isolated native state matrix covers reduced motion, task states, hover/drag priority, request dismissal and follow-up gaze. Native macOS/Linux and all older desktop host combinations are unverified.
+Validation includes 106 automated tests covering notifications, session interaction, motion, local voice calls and spoken dialogue. Previous isolated page and native checks cover localization, transparency/topmost/non-activation, 200% DPI, hidden-page continuity, approval transport, page fallback and process cleanup. The isolated native state matrix covers reduced motion, task states, hover/drag priority, request dismissal and follow-up gaze. Real microphone, speaker and live-model call experience remain unverified, as do native macOS/Linux and all older desktop host combinations.
 
 Actions are disabled for this fork. Push after local validation; upstream workflow history is retained without enabling automated publishing.
 
