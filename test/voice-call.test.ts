@@ -51,3 +51,16 @@ test('hangup while the spoken model thinks prevents late delegation and audio pl
 test('dialogue failure speaks a short status without reading the backend directory listing or claiming success',async()=>{
  const x=fixture();x.deps.dialogue.respond=async()=>{throw new Error('model unavailable');};await x.call.start();x.observe({reply:'C:\\very-long-project\\file.ts',replyKey:'failed-rewrite',stamp:'2',error:'检查失败'});await flush();await flush();assert.deepEqual(x.spoken,['这一步遇到了问题，具体情况留在对话里了。']);assert.equal(x.sends,0);x.call.stop();
 });
+test('a completed marker arriving after the same reply does not summarize or speak it twice; cancellation remains a new fact',async()=>{
+ const x=fixture(),inputs:DialogueInput[]=[];x.deps.dialogue.respond=async input=>{inputs.push(input);return {action:'reply',reply:input.task.outcome==='cancelled'?'任务已停止，尚未完成。':'当前就在这个工作目录。'};};await x.call.start();
+ x.observe({reply:'当前工作目录是测试项目。',replyKey:'directory',stamp:'2'});await flush();await flush();
+ x.observe({outcome:'completed',stamp:'3'});await flush();await flush();assert.equal(inputs.length,1);assert.deepEqual(x.spoken,['当前就在这个工作目录。']);
+ x.observe({outcome:'cancelled',stamp:'4'});await flush();await flush();assert.equal(inputs.length,2);assert.equal(x.spoken.at(-1),'任务已停止，尚未完成。');x.call.stop();
+});
+test('modern task output waits for its terminal event and distinct turns can report identical text',async()=>{
+ const x=fixture(),inputs:DialogueInput[]=[];x.deps.dialogue.respond=async input=>{inputs.push(input);return {action:'reply',reply:'这是本轮结果。'};};await x.call.start();
+ x.observe({reply:'相同的任务事实',replyKey:'same',resultKey:'turn-one',settled:false,stamp:'2'});await flush();assert.equal(inputs.length,0);
+ x.observe({outcome:'completed',settled:true,stamp:'3'});await flush();await flush();assert.equal(inputs.length,1);assert.equal(inputs[0].task.outcome,'completed');
+ x.observe({stamp:'4'});await flush();assert.equal(inputs.length,1);
+ x.observe({running:true,outcome:undefined,settled:false,resultKey:'turn-two',stamp:'5'});x.observe({running:false,outcome:'completed',settled:true,stamp:'6'});await flush();await flush();assert.equal(inputs.length,2);x.call.stop();
+});

@@ -9,7 +9,7 @@ function fixture(){
 }
 test('spoken conversation uses the selected DSH model without tools, keeps short follow-up context, and has a separate cursor',async t=>{
  const x=fixture();t.after(()=>x.dialogue.dispose());await x.dialogue.ready(task,new AbortController().signal);const first=await x.dialogue.respond({mode:'utterance',text:'你好',task},new AbortController().signal);assert.equal(first.action,'reply');assert.equal(x.requests[0].provider,'configured');assert.equal(x.requests[0].model,'selected-model');assert.notEqual(x.requests[0].sessionId,task.sessionId);assert.ok(x.requests[0].system.includes('NO tools'));
- x.reply('reply','刚才是在问你想聊些什么。');await x.dialogue.respond({mode:'utterance',text:'你刚才说什么',task},new AbortController().signal);const input=JSON.parse(x.requests[1].messages[0].content[0].text);assert.equal(input.history[0].text,'你好');assert.equal(input.history[1].text,first.reply);assert.equal(x.requests[1].sessionId,x.requests[0].sessionId);
+ x.reply('reply','刚才是在问你想聊些什么。');await x.dialogue.respond({mode:'utterance',text:'你刚才说什么',task},new AbortController().signal);const messages=x.requests[1].messages;assert.deepEqual(messages.slice(0,1),x.requests[0].messages);assert.equal(messages[1].role,'assistant');assert.equal(JSON.parse(messages[1].content[0].text).reply,first.reply);const input=JSON.parse(messages.at(-1)!.content[0].text);assert.equal(input.user,'你刚才说什么');assert.equal(input.history,undefined);assert.equal(x.requests[1].sessionId,x.requests[0].sessionId);
 });
 test('spoken task results receive the useful facts after long directory listings instead of a truncated preview',async t=>{
  const x=fixture();t.after(()=>x.dialogue.dispose());x.reply('reply','改动已经保存，不过检查没有通过，缺少一项依赖。');const reply='## 文件列表\n'+('very-long-directory-name/another-file-name.ts\n'.repeat(80))+'\n检查失败：缺少依赖，尚未通过验证。';
@@ -41,4 +41,14 @@ test('cancelled queued dialogue cannot release the active model slot or enter sp
 });
 test('cancelled task outcome reaches the spoken model alongside partial plans, without claiming completion',async t=>{
  const x=fixture();t.after(()=>x.dialogue.dispose());x.reply('reply','刚才已经停下来了，还没有完成。');const result=await x.dialogue.respond({mode:'result',task:{...task,outcome:'cancelled',reply:'我准备修改项目。'}},new AbortController().signal);assert.equal(JSON.parse(x.requests[0].messages[0].content[0].text).task.outcome,'cancelled');assert.equal(result.reply,'刚才已经停下来了，还没有完成。');assert.ok(x.requests[0].system.includes('cancelled task is not successful'));
+});
+test('unchanged task output is referenced from the existing exchange rather than copied into every new message',async t=>{
+ const x=fixture();t.after(()=>x.dialogue.dispose());const current={...task,reply:'文件已保存，但测试尚未通过。'};
+ await x.dialogue.respond({mode:'result',task:current},new AbortController().signal);await x.dialogue.respond({mode:'utterance',text:'下一步呢',task:current},new AbortController().signal);
+ const first=JSON.parse(x.requests[0].messages[0].content[0].text),next=JSON.parse(x.requests[1].messages.at(-1)!.content[0].text);assert.equal(first.task.reply,current.reply);assert.equal(next.task.reply,undefined);assert.equal(next.task.replyUnchanged,true);assert.deepEqual(x.requests[1].messages[0],x.requests[0].messages[0]);
+});
+test('bounded model history resets browser affinity when pruning and does not lose the latest task facts',async t=>{
+ const x=fixture();t.after(()=>x.dialogue.dispose());for(let i=0;i<14;i++)await x.dialogue.respond({mode:'utterance',text:'问候'+i,task},new AbortController().signal);
+ assert.ok(x.requests.every(request=>request.messages.length<=25));assert.notEqual(x.requests[13].sessionId,x.requests[0].sessionId);assert.equal(JSON.parse(x.requests[13].messages.at(-1)!.content[0].text).task.reply,'');
+ const long=fixture();t.after(()=>long.dialogue.dispose());for(let i=0;i<6;i++)await long.dialogue.respond({mode:'result',task:{...task,reply:'事实'+i+'x'.repeat(12000)}},new AbortController().signal);assert.ok(long.requests.every(request=>JSON.stringify(request.messages).length<50000));assert.ok(new Set(long.requests.map(request=>request.sessionId)).size>1);
 });

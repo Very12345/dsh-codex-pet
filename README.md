@@ -2,7 +2,7 @@
 
 [简体中文](README.zh-CN.md)
 
-An independent fork of [MichengAI/dsh-codex-pet](https://github.com/MichengAI/dsh-codex-pet), based on upstream 0.1.12. Fork version **0.5.0** adds a native Windows floating companion outside the DSH window.
+An independent fork of [MichengAI/dsh-codex-pet](https://github.com/MichengAI/dsh-codex-pet), based on upstream 0.1.12. Fork version **0.5.1** adds a native Windows floating companion outside the DSH window.
 
 ## Features
 
@@ -12,6 +12,7 @@ An independent fork of [MichengAI/dsh-codex-pet](https://github.com/MichengAI/ds
 - Sending a draft or pressing Ctrl+Enter creates and prompts a native DSH session. The voice button starts a continuous local call with automatic utterance submission and spoken reply summaries; right-click the pet for the original manual dictation flow.
 - A separate spoken conversation layer uses the selected DSH text model. Chat, follow-ups and clarifications are answered directly; work requests are delegated to the original task. Results become one to three conversational sentences, with directory listings, files and logs kept in the written task rather than reading a truncated preview. Recognition remains responsive while the model thinks.
 - Recognition and synthesis remain local, with no new speech API key. Dialogue adds normal text-model calls under the configured model/account usage terms. The spoken layer has no tools or approval permissions; short conversation history is cleared on hangup.
+- Spoken context uses bounded standard conversation messages without repeatedly embedding history or unchanged task output in a new question. Modern task results wait for their terminal event and are summarized once; late completion metadata stays silent while cancellation/failure changes remain visible.
 - Prepared local recognizers in standby/waking accept recording, matching DSH voice input; the host wakes the worker during transcription without requiring re-installation.
 
 - Transparent, always-on-top pet, visible while DSH is minimized or another app is active. Startup and state updates do not steal focus.
@@ -73,7 +74,7 @@ npm pack --dry-run --ignore-scripts
 
 Windows browser tests default to Edge (`DSH_PET_BROWSER_CHANNEL` overrides it). Fixtures use temporary data and fake sessions, never real user approvals. Native screenshots capture only the helper's own sprite under ignored `.preview/`.
 
-Validation includes 112 automated tests covering notifications, session interaction, motion, local voice calls and spoken dialogue. Previous isolated page and native checks cover localization, transparency/topmost/non-activation, 200% DPI, hidden-page continuity, approval transport, page fallback and process cleanup. The isolated native state matrix covers reduced motion, task states, hover/drag priority, request dismissal and follow-up gaze. Real microphone, speaker and live-model call experience remain unverified, as do native macOS/Linux and all older desktop host combinations.
+Validation includes 119 automated tests covering notifications, session interaction, motion, local voice calls and spoken dialogue. Previous isolated page and native checks cover localization, transparency/topmost/non-activation, 200% DPI, hidden-page continuity, approval transport, page fallback and process cleanup. The isolated native state matrix covers reduced motion, task states, hover/drag priority, request dismissal and follow-up gaze. Real microphone, speaker and live-model call experience remain unverified, as do native macOS/Linux and all older desktop host combinations.
 
 Actions are disabled for this fork. Push after local validation; upstream workflow history is retained without enabling automated publishing.
 

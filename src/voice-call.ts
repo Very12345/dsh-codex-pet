@@ -5,6 +5,8 @@ import {spokenText} from './speech-text.ts';export {spokenText} from './speech-t
 export type CallPhase='off'|'starting'|'listening'|'recognizing'|'thinking'|'working'|'preparing-audio'|'speaking'|'muted'|'error';
 export interface CallState {phase:CallPhase;active:boolean;muted:boolean;title:string;sessionId:string|null;heard:string;said:string;error:string;level:number}
 type Dependencies={microphone:CallMicrophone;sessions:VoiceSessions;dialogue:VoiceDialogueClient;ready(signal:AbortSignal):Promise<void>;recognize(audio:Uint8Array,signal:AbortSignal):Promise<string>;synthesize(text:string,signal:AbortSignal):Promise<Uint8Array>;publish(state:CallState):void;silenceMs?:number};
+// A late completed marker is not a second result. Cancellation/failure changes still matter.
+const resultIdentity=(value:VoiceObservation)=>JSON.stringify([value.sessionId,value.resultKey,value.replyKey||value.reply,value.outcome==='completed'?undefined:value.outcome]);
 export class LocalVoiceCall {
  private generation=0;private controller?:AbortController;private output?:AbortController;private intent?:AbortController;private answer?:AbortController;private answerInput?:DialogueInput;
  private vad:LocalVad;private pending=0;private tail=Promise.resolve();private seen='';private lastReplyKey='';private lastSpoken='';private lastLevelAt=0;private off?:()=>void;private deferred='';private deferredTask?:DialogueInput;private captureReady=false;private waitingAnnounced=false;private utterances:string[]=[];
@@ -18,7 +20,7 @@ export class LocalVoiceCall {
    await this.deps.ready(controller.signal);if(generation!==this.generation)return;
    const initial=await this.deps.sessions.begin();if(generation!==this.generation)return;
    await this.deps.dialogue.start(initial,controller.signal);if(generation!==this.generation)return;
-   this.seen=JSON.stringify([initial.stamp,initial.reply,initial.running,initial.waiting,initial.error,initial.outcome]);this.lastReplyKey=JSON.stringify([initial.replyKey,initial.outcome]);this.lastSpoken='';this.update({title:initial.title,sessionId:initial.sessionId});
+   this.seen=JSON.stringify([initial.stamp,initial.reply,initial.running,initial.waiting,initial.error,initial.outcome,initial.settled]);this.lastReplyKey=resultIdentity(initial);this.lastSpoken='';this.update({title:initial.title,sessionId:initial.sessionId});
    this.off=this.deps.sessions.subscribe(()=>this.observe());await this.deps.microphone.start(frame=>this.feed(frame));if(generation!==this.generation)return;
    this.vad=new LocalVad(this.deps.microphone.sampleRate??16000,this.deps.silenceMs??900);this.captureReady=true;this.update({phase:this.state.muted?'muted':'listening'});this.flush();
    if(initial.waiting){this.seen='';this.observe();}
@@ -73,10 +75,10 @@ export class LocalVoiceCall {
  }
  private observe(){
   if(!this.active)return;const value=this.deps.sessions.snapshot();if(value.missing){this.stop();this.update({phase:'error',error:'原对话已关闭，本次通话已结束。'});return;}
-  this.update({title:value.title,sessionId:value.sessionId});const key=JSON.stringify([value.stamp,value.reply,value.running,value.waiting,value.error,value.outcome]);if(key===this.seen)return;this.seen=key;
+  this.update({title:value.title,sessionId:value.sessionId});const key=JSON.stringify([value.stamp,value.reply,value.running,value.waiting,value.error,value.outcome,value.replyKey,value.resultKey,value.settled]);if(key===this.seen)return;this.seen=key;
   if(value.error){this.update({error:value.error});if(!this.waitingAnnounced){this.waitingAnnounced=true;this.deferredTask={mode:'progress',task:value};this.flush();}return;}
   if(value.waiting){if(!this.waitingAnnounced){this.waitingAnnounced=true;void this.say('这一步需要你确认一下，请在对话里处理。');}return;}this.waitingAnnounced=false;
-  const replyKey=JSON.stringify([value.replyKey,value.outcome]);if(!value.running&&(value.reply||value.outcome)&&replyKey!==this.lastReplyKey){this.lastReplyKey=replyKey;this.deferredTask={mode:'result',task:value};if(this.answer)this.interrupt();this.flush();}
+  const replyKey=resultIdentity(value);if(!value.running&&value.settled!==false&&(value.reply||value.outcome)&&replyKey!==this.lastReplyKey){this.lastReplyKey=replyKey;this.deferredTask={mode:'result',task:value};if(this.answer)this.interrupt();this.flush();}
  }
  private async answerTask(input:DialogueInput){
   const generation=this.generation,answer=new AbortController();this.answer=answer;this.answerInput=input;const signal=AbortSignal.any([answer.signal,this.controller!.signal]);this.update({phase:'thinking'});

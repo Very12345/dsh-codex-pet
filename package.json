@@ -1,6 +1,6 @@
 {
   "name": "@very12345/dsh-codex-pet",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "license": "Apache-2.0",
   "description": "Windows floating desktop pet and multi-task notifications for DeepSeek Harness; independent fork of MichengAI/dsh-codex-pet",
   "keywords": [

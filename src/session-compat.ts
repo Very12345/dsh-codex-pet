@@ -17,6 +17,7 @@ export function compatibleSessions(
   type Binding = NonNullable<ReturnType<Sessions['binding']>>;
   const cache = new WeakMap<object, Binding>();
   const refs = new Map<string, NonNullable<ReturnType<NonNullable<Sessions['retain']>>>>();
+  const operations = new Set<NonNullable<ReturnType<NonNullable<Sessions['retain']>>>>();
   let disposed=false;
   const statusStore=status ?? sessions.status;
   const active=(id:string)=>{
@@ -33,10 +34,16 @@ export function compatibleSessions(
   };
   const offList=sessions.list?.subscribe?.(sweep),offStatus=statusStore?.subscribe?.(sweep);
   return {
-    dispose(){if(disposed)return;disposed=true;offList?.();offStatus?.();const owned=[...refs.values()];refs.clear();for(const ref of owned)ref.release();},
+    dispose(){if(disposed)return;disposed=true;offList?.();offStatus?.();const owned=[...refs.values(),...operations];refs.clear();for(const ref of owned)ref.release();operations.clear();},
     list: sessions.list,
     status: status ?? sessions.status,
     using: sessions.using?.bind(sessions),
+    retain: sessions.retain ? (id,options)=>{
+      if(disposed)throw new Error('会话接口已卸载');
+      const reference=sessions.retain!(id,options);let released=false;
+      const owned={get binding(){return reference.binding;},ready:reference.ready,release(){if(released)return;released=true;operations.delete(owned);reference.release();}};
+      operations.add(owned);return owned;
+    } : undefined,
     open: id => navigate ? navigate(id) : sessions.open?.(id),
     create: async options => {
       if (!sessions.create) throw new Error('创建会话尚不可用，请重试');

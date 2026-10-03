@@ -19,3 +19,13 @@ test('voice receives settled text beyond the card preview, and forwards clarific
  const x=fixture(),binding=x.sessions.binding('a')!,reply='目录/'.repeat(300)+'验证失败，尚不能交付。';binding.eventSource={getSnapshot:()=>({revision:1,entries:[{type:'event',event:{type:'assistant/message',seq:2,data:{message:{content:[{type:'text',text:reply}]}}}}],change:{kind:'replace',entries:[]}}),subscribe:()=>()=>{}};
  const voice=createVoiceSessions(x.sessions);try{await voice.begin();assert.equal(voice.snapshot().reply,reply);await voice.send('当前项目',new AbortController().signal,'user: 帮我整理一下\nassistant: 哪个项目？');assert.equal(x.sent[0].content[1].text,'当前项目');assert.ok(x.sent[0].content[0].text.includes('不提供额外权限'));}finally{voice.dispose();}
 });
+test('modern observations keep one result identity while a late turn end marks it settled',async()=>{
+ const x=fixture(),binding=x.sessions.binding('a')!;const entries:any[]=[{type:'event',event:{seq:1,type:'turn/start',data:{turn:1}}},{type:'event',event:{seq:2,type:'assistant/message',data:{turn:1,step:0,message:{content:[{type:'text',text:'当前目录是工作区。'}]}}}}];
+ binding.eventSource={getSnapshot:()=>({revision:entries.length,entries,change:{kind:'append',entries:[]}}),subscribe:()=>()=>{}};
+ const voice=createVoiceSessions(x.sessions);try{const first=await voice.begin();assert.equal(first.running,false);assert.equal(first.settled,false);entries.push({type:'event',event:{seq:3,type:'turn/end',data:{turn:1,reason:{kind:'completed'}}}});const second=voice.snapshot();assert.equal(second.settled,true);assert.equal(first.replyKey,second.replyKey);assert.equal(first.resultKey,second.resultKey);assert.equal(second.outcome,'completed');}finally{voice.dispose();}
+});
+test('a cold retained binding is accessed only after the reference becomes ready',async()=>{
+ const x=fixture(),binding=x.sessions.binding('a')!;let prepared=false,reads=0;
+ x.sessions.retain=()=>({get binding(){reads++;assert.equal(prepared,true);return binding;},ready:new Promise<void>(resolve=>setImmediate(()=>{prepared=true;resolve();})),release(){x.sent.push('released');}});
+ const voice=createVoiceSessions(x.sessions);try{const pending=voice.begin();assert.equal(reads,0);await pending;assert.equal(reads,1);}finally{voice.dispose();}assert.deepEqual(x.sent,['released']);
+});

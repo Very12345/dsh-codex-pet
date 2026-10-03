@@ -1,5 +1,5 @@
 import {selectedSessionId,type Sessions} from './activity.ts';import {noticePreview} from './notice-preview.ts';
-export interface VoiceObservation {sessionId:string|null;title:string;running:boolean;waiting:boolean;missing?:boolean;error:string|null;outcome?:string;reply:string;replyKey:string;stamp:string}
+export interface VoiceObservation {sessionId:string|null;title:string;running:boolean;waiting:boolean;missing?:boolean;error:string|null;outcome?:string;settled?:boolean;resultKey?:string;reply:string;replyKey:string;stamp:string}
 export interface VoiceSessions {begin():Promise<VoiceObservation>;send(text:string,signal:AbortSignal,context?:string):Promise<VoiceObservation>;snapshot():VoiceObservation;subscribe(listener:()=>void):()=>void;cancelTask():Promise<void>;end():void;dispose():void}
 export function createVoiceSessions(sessions:Sessions):VoiceSessions {
  let id:string|null=null,ref:ReturnType<NonNullable<Sessions['retain']>>|undefined,binding:ReturnType<Sessions['binding']>,offSession:(()=>void)|undefined,offEvents:(()=>void)|undefined,epoch=0,disposed=false;
@@ -7,7 +7,7 @@ export function createVoiceSessions(sessions:Sessions):VoiceSessions {
  const attach=async(target:string)=>{
   if(!sessions.list.getSnapshot().byId[target]||sessions.list.getSnapshot().byId[target].origin==='subagent')throw new Error('语音目标会话已关闭或不可用');
   const generation=epoch;id=target;
-  if(sessions.retain){const raw=sessions.retain(target,{source:'controllerOperation'});let released=false;const next={...raw,release(){if(!released){released=true;raw.release();}}};ref=next;await next.ready;if(generation!==epoch){next.release();throw new Error('通话已结束');}binding=next.binding;}
+  if(sessions.retain){const raw=sessions.retain(target,{source:'controllerOperation'});let released=false;const next={get binding(){return raw.binding;},ready:raw.ready,release(){if(!released){released=true;raw.release();}}};ref=next;await next.ready;if(generation!==epoch){next.release();throw new Error('通话已结束');}binding=next.binding;}
   else binding=sessions.binding(target);
   if(!binding?.session.prompt)throw new Error('当前宿主未提供会话输入能力');
   offSession=binding.session.subscribe(notify);offEvents=binding.eventSource?.subscribe(notify);notify();
@@ -17,7 +17,8 @@ export function createVoiceSessions(sessions:Sessions):VoiceSessions {
   const entries=events?.entries?.slice(-200)??events?.change.entries??[],start=entries.map(entry=>entry.event.type==='turn/start').lastIndexOf(true),current=entries.slice(start<0?0:start),preview=noticePreview(current),assistant=current.filter(entry=>entry.event.type==='assistant/message').at(-1)?.event;
   const reply=assistant?.data?.message?.content?.filter(block=>block.type==='text'&&typeof block.text==='string').map(block=>block.text).join('\n').slice(0,16000)??preview.text;
   const outcome=current.filter(entry=>entry.event.type==='turn/end').at(-1)?.event.data?.reason?.kind;
-  return {sessionId:id,title:row?.title??row?.displayTitle??'新对话',running:status?.running??state?.running??row?.running??false,waiting:!!(status?.pendingInteraction??row?.pendingInteraction),missing:!!state?.removed||!!(id&&!row),error:id&&!row?'语音目标会话已移除':state?.lastAgentError??state?.promptError?.error?.message??null,outcome,reply,replyKey:assistant?JSON.stringify([assistant.seq,assistant.data?.turn,assistant.data?.step,reply]):'',stamp:String(events?.revision??row?.updatedAt??0)};
+  const boundary=current.find(entry=>entry.event.type==='turn/start')?.event;
+  return {sessionId:id,title:row?.title??row?.displayTitle??'新对话',running:status?.running??state?.running??row?.running??false,waiting:!!(status?.pendingInteraction??row?.pendingInteraction),missing:!!state?.removed||!!(id&&!row),error:id&&!row?'语音目标会话已移除':state?.lastAgentError??state?.promptError?.error?.message??null,outcome,settled:events?.entries!==undefined?outcome!==undefined:undefined,resultKey:boundary?JSON.stringify([boundary.seq,boundary.data?.turn]):undefined,reply,replyKey:assistant?JSON.stringify([assistant.seq,assistant.data?.turn,assistant.data?.step,reply]):'',stamp:String(events?.revision??row?.updatedAt??0)};
  };
  const end=()=>{epoch++;offSession?.();offEvents?.();offSession=offEvents=undefined;ref?.release();ref=undefined;binding=undefined;id=null;};
  const offList=sessions.list.subscribe(notify),offStatus=sessions.status?.subscribe(notify);

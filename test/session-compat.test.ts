@@ -109,3 +109,8 @@ test('new companion sessions allocate their own cwd while explicit workspaces ar
  const sessions=compatibleSessions({list:{},binding:()=>undefined,async create(options?:{cwd?:string}){created.push(options);return 'owned';}} as unknown as Sessions,undefined,undefined,async()=>{allocations++;return '/owned/pet/task-'+allocations;});
  try{await sessions.create!();await sessions.create!({});await sessions.create!({cwd:'/existing/project'});assert.deepEqual(created,[{cwd:'/owned/pet/task-1'},{cwd:'/owned/pet/task-2'},{cwd:'/existing/project'}]);assert.equal(allocations,2);}finally{sessions.dispose();}
 });
+test('explicit call observation survives idle while ordinary notification references release, and disposal releases each lease once',()=>{
+ let releases=0;const listeners=new Set<()=>void>(),value={ids:['call'],byId:{call:{id:'call',running:true}}};
+ const raw={list:{getSnapshot:()=>value,subscribe:(fn:()=>void)=>{listeners.add(fn);return()=>listeners.delete(fn);}},binding:()=>undefined,retain(){return {binding:{session:{getSnapshot:()=>({running:true,lastAgentError:null}),subscribe:()=>()=>{}}},ready:Promise.resolve(),release(){releases++;}};}};
+ const sessions=compatibleSessions(raw as unknown as Sessions);const call=sessions.retain!('call',{source:'controllerOperation'});assert.ok(sessions.binding('call'));value.byId.call.running=false;for(const fn of listeners)fn();assert.equal(releases,1);sessions.dispose();assert.equal(releases,2);call.release();assert.equal(releases,2);
+});

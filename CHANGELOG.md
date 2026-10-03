@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.1] - 2026-10-03
+
+- Announce each task result once: wait for modern terminal events, ignore late completed metadata for unchanged replies, and retain cancellation/failure updates.
+- Send bounded standard user/assistant exchanges instead of embedding conversation history inside each user JSON snapshot. Preserve the Web API prefix and omit unchanged task text; reset browser affinity when pruning or rejecting an attempted response.
+- Add regressions for the observed duplicate-result sequence, parallel state updates, bounded context and native browser/voice integration; 119 automated tests pass.
+
 ## [0.5.0] - 2026-10-03
 
 - Place live progress below the task title; show thinking, reply text, tool preparation, friendly tool activity and observed context compaction.
