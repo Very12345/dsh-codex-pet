@@ -3,6 +3,7 @@ import { ChevronDownIcon, Cross2Icon, ResetIcon, MixerHorizontalIcon, QuestionMa
 /** Web 与原生浮窗共用的会话通知列表；所有提交都携带原请求身份。 */
 import React, { useState } from 'react';
 import type { Answers, Notice, NoticeCommand, NotificationState } from './notifications.ts';
+import {noticeCopy} from './notice-copy.ts';
 export type TrayCommand = NoticeCommand | { type: 'sort'; latest: boolean } | {type:'new-session'} | {type:'send-message';text:string;files?:string[]} | {type:'voice-toggle'} | {type:'voice-cancel'} | {type:'call-toggle'} | {type:'call-mute'} | {type:'call-end'};
 export interface TrayProps { language?: string; state: NotificationState; command(value: TrayCommand): Promise<void> }
 export function RequestForm({ item, command, language }: { language?: string; item: Notice; command: TrayProps['command'] }) {
@@ -44,7 +45,7 @@ export function NotificationTray({ state, command, language }: TrayProps) {
       {visible.map(item => <article role="listitem" key={item.id} data-status={item.pose}>
         <button className="dcp-notice-dismiss" aria-label={t('关闭通知：{title}', { title: item.title })} title={t('关闭本轮提醒，任务继续运行')} onClick={() => void run({ type: 'dismiss', id: item.id, token: item.token })}><Cross2Icon /></button>
         <div className="dcp-notice-card">
-          <button className="dcp-bubble-link" title={item.title} onClick={() => void run({ type: 'open', id: item.id, token: item.token })}><strong>{item.pose==='review'?'✓ ':''}{item.title}</strong><span>{item.preview||t(item.text)}</span></button>
+          <button className="dcp-bubble-link" title={item.title} onClick={() => void run({ type: 'open', id: item.id, token: item.token })}><strong>{item.pose==='review'?'✓ ':''}{item.title}</strong><span className={item.pose==='running'?'dcp-progress-text':''}>{noticeCopy(item,(zh,en)=>language?.startsWith('en')?en:zh).text}</span></button>
           <div className="dcp-notice-actions">
             {item.request ? <button className="dcp-notice-action" aria-label={t('处理请求：{title}', { title: item.title })} title={t('查看并处理')} aria-expanded={detail === item.request.key} onClick={() => { setExpanded(true); setDetail(detail === item.request!.key ? null : item.request!.key); }}><QuestionMarkCircledIcon /></button> : <button className="dcp-notice-action" aria-label={t('回复会话：{title}', { title: item.title })} title={t('回复会话：{title}',{title:item.title})} onClick={() => setReply({id:item.id,token:item.token})}><ResetIcon /></button>}
             {item.pose === 'running' && <button className="dcp-notice-action" aria-label={t('停止当前轮次：{title}', { title: item.title })} title={t('停止当前轮次')} onClick={() => void run({ type: 'stop', id: item.id, token: item.token })}><StopIcon /></button>}
@@ -73,4 +74,5 @@ export const polishedTrayStyles = `
 .dcp-tray .dcp-notice-actions{display:flex;align-items:center;flex-shrink:0;gap:6px}.dcp-tray .dcp-notice-action{display:flex;align-items:center;justify-content:center;flex-shrink:0;width:28px;height:28px;padding:6px!important;border-radius:50%;background:color-mix(in srgb,var(--pet-text) 8%,transparent);color:var(--pet-muted)}.dcp-tray .dcp-notice-action svg{width:15px;height:15px}.dcp-tray .dcp-notice-action:hover{background:color-mix(in srgb,var(--pet-text) 15%,transparent);color:var(--pet-text)}
 .dcp-tray .dcp-notice-dismiss{position:absolute;z-index:1;left:-3px;top:-3px;display:flex;align-items:center;justify-content:center;width:19px;height:19px;padding:4px!important;border-radius:50%;border:1px solid color-mix(in srgb,var(--pet-text) 22%,transparent);background:var(--pet-bg);color:var(--pet-muted)}.dcp-tray .dcp-notice-dismiss svg{width:10px;height:10px}.dcp-tray .dcp-notice-dismiss:hover{background:var(--pet-card);color:var(--pet-text)}
 .dcp-tray .dcp-request{margin-top:7px;padding:10px;background:var(--pet-card);border:1px solid var(--pet-line);border-radius:14px}.dcp-tray .dcp-request p{overflow-wrap:anywhere}.dcp-tray .dcp-request button{background:color-mix(in srgb,var(--pet-text) 6%,transparent);margin:3px}
+.dcp-progress-text{background:linear-gradient(100deg,var(--pet-muted) 35%,var(--pet-text) 50%,var(--pet-muted) 65%);background-size:240% 100%;background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:dcp-progress 2s linear infinite}@keyframes dcp-progress{from{background-position:100% 0}to{background-position:-100% 0}}@media(prefers-reduced-motion:reduce){.dcp-progress-text{background:none;-webkit-text-fill-color:currentColor;animation:none}}
 `;

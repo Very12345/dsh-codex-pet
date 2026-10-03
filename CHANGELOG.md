@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0] - 2026-10-03
+
+- Place live progress below the task title; show thinking, reply text, tool preparation, friendly tool activity and observed context compaction.
+- Clear completed tool activity, handle parallel calls and incremental windows, and add a subtle progress shimmer that respects reduced motion.
+- Allocate a separate scratch workspace for each new companion task. Prefer workspace UI navigation and bring the owning Windows DSH window forward after a successful task-card click, including minimized windows.
+- Validate 112 automated tests plus isolated page, native companion and owned-window focus checks. Keep task files for later follow-up.
+
 ## [0.4.0] - 2026-10-03
 
 - Add an independent spoken conversation layer using the selected DSH model for chat, follow-ups and clarification; delegate work to the original session with native permissions and queue/steer admission.

@@ -103,3 +103,9 @@ test('旧版冷会话随后加载历史时不伪造完成事件', () => {
   state = { openState: 'open', chat: { timeline: { turns: new Map([[1, { end: { seq: 20, type: 'turn/end', data: { reason: { kind: 'completed' } } } }]]) } } };
   assert.equal(source.getSnapshot().change.kind, 'replace');
 });
+
+test('new companion sessions allocate their own cwd while explicit workspaces are preserved',async()=>{
+ const created:unknown[]=[];let allocations=0;
+ const sessions=compatibleSessions({list:{},binding:()=>undefined,async create(options?:{cwd?:string}){created.push(options);return 'owned';}} as unknown as Sessions,undefined,undefined,async()=>{allocations++;return '/owned/pet/task-'+allocations;});
+ try{await sessions.create!();await sessions.create!({});await sessions.create!({cwd:'/existing/project'});assert.deepEqual(created,[{cwd:'/owned/pet/task-1'},{cwd:'/owned/pet/task-2'},{cwd:'/existing/project'}]);assert.equal(allocations,2);}finally{sessions.dispose();}
+});

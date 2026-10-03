@@ -1,10 +1,12 @@
 const {app,BrowserWindow,ipcMain,screen,dialog}=require('electron');
 const {join}=require('node:path');const readline=require('node:readline');const {createConnection}=require('node:net');
+const {execFile}=require('node:child_process');
 const {petPlacement,overlayBounds,constrainPet,panelOffset,VIEWPORT_WIDTH}=require('./layout.cjs');
 const parent=Number(process.argv.find(value=>value.startsWith('--parent-pid='))?.split('=')[1]);
 app.setAppUserModelId('org.very12345.dsh-floating-pet');
 let win,snapshot,zones=[],drag,closed=false,currentImage='',fixture=process.env.DSH_PET_NATIVE_TEST==='1',choosingFiles=false;
 let pipeReady=false,pageReady=false;
+let hostFocusRequests=0;
 let anchor,petTop=12,layoutAbove=false,lastHover=false;
 let leftPressed=false;
 const pipe=createConnection({host:'127.0.0.1',port:Number(process.env.DSH_FLOATING_PET_BRIDGE_PORT)});
@@ -43,6 +45,15 @@ app.whenReady().then(()=>{
  win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',event=>event.preventDefault());
  win.webContents.session.setPermissionRequestHandler((_contents,_permission,callback)=>callback(false));
  ipcMain.on('pet:focus',event=>{if(owner(event)){win.setIgnoreMouseEvents(false);win.focus();}});
+ ipcMain.handle('pet:focus-host',async event=>{
+  if(!owner(event))return {ok:false,error:'Desktop connection unavailable'};
+  if(fixture){hostFocusRequests++;return {ok:true};}
+  if(!Number.isInteger(parent)||parent<=0)return {ok:false,error:'DSH owner unavailable'};
+  return await new Promise(resolve=>execFile(join(process.env.SystemRoot||'C:/Windows','System32/WindowsPowerShell/v1.0/powershell.exe'),['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',join(__dirname,'activate-host.ps1'),'-OwnerProcessId',String(parent)],{windowsHide:true,timeout:8000,maxBuffer:16384,encoding:'utf8'},(error,stdout)=>{
+   if(error){resolve({ok:false,error:'会话已切换，但未能将 DSH 窗口带到前台。'});return;}
+   try{resolve(JSON.parse(stdout));}catch{resolve({ok:false,error:'DSH 窗口状态无法确认。'});}
+  }));
+ });
  ipcMain.handle('pet:files',async event=>{if(!owner(event))return [];choosingFiles=true;try{const result=await dialog.showOpenDialog(win,{properties:['openFile','multiSelections']});return result.canceled?[]:result.filePaths;}finally{choosingFiles=false;if(!closed)win.focus();}});
  win.on('blur',()=>{endDrag();if(!choosingFiles&&!closed)win.webContents.send('pet:message',{type:'window-blur'});});
  win.on('hide',endDrag);
@@ -70,7 +81,7 @@ app.whenReady().then(()=>{
    if(first||previousSize!==value.config?.size||JSON.stringify(previous)!==JSON.stringify(value.config?.desktopPosition))win.setBounds(placement(win.getBounds().height),false);
    win.webContents.send('pet:message',value);publishLayout();if(value.config?.visible!==false){if(!win.isVisible()){win.showInactive();win.setAlwaysOnTop(true,'normal');}}else win.hide();
   }else if(value.type==='inspect'){
-   try{const state=await win.webContents.executeJavaScript('window.__petInspect()');const screenshot=await win.webContents.capturePage();emit({type:'inspection',id:value.id,pid:process.pid,nativeDragging:!!drag,visible:win.isVisible(),focused:win.isFocused(),topmost:win.isAlwaysOnTop(),bounds:win.getBounds(),workArea:nativeArea(anchorDisplay()),scale:anchorDisplay().scaleFactor,image:screenshot.toPNG().toString('base64'),...state});}catch(error){emit({type:'native-error',error:error.message});}
+   try{const state=await win.webContents.executeJavaScript('window.__petInspect()');const screenshot=await win.webContents.capturePage();emit({type:'inspection',id:value.id,pid:process.pid,hostFocusRequests,nativeDragging:!!drag,visible:win.isVisible(),focused:win.isFocused(),topmost:win.isAlwaysOnTop(),bounds:win.getBounds(),workArea:nativeArea(anchorDisplay()),scale:anchorDisplay().scaleFactor,image:screenshot.toPNG().toString('base64'),...state});}catch(error){emit({type:'native-error',error:error.message});}
   }else if(value.type==='fixture-ui'&&fixture){
    if(value.action==='blur'){const focusSink=new BrowserWindow({width:180,height:80,show:true,frame:false,skipTaskbar:true,title:'Pet test focus fixture',webPreferences:{sandbox:true}});focusSink.focus();setTimeout(()=>focusSink.destroy(),250);}
    else if(value.action==='drag-start'){win.focus();win.setIgnoreMouseEvents(false);const state=await win.webContents.executeJavaScript('window.__petInspect()');const rect=state.petBounds;win.webContents.sendInputEvent({type:'mouseDown',button:'left',x:Math.round(rect.x+rect.width/2),y:Math.round(rect.y+rect.height/2),clickCount:1});}

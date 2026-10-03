@@ -1,7 +1,7 @@
 /** 多会话通知与真实交互适配；不打开后台会话、不替用户作决定。 */
 import { IDLE, selectActivity, type Activity } from './model.ts';
 import { selectedSessionId, type Sessions, type Store } from './activity.ts';
-import {noticePreview,type NoticePreview} from './notice-preview.ts';
+import {noticePreview,type NoticePreview,type NoticePhase} from './notice-preview.ts';
 export interface Question { id: string; question: string; detail?: string; options?: { label: string; description?: string }[]; multiSelect?: boolean }
 export interface Answers { answers: { id: string; selected: string[]; custom?: string }[] }
 export interface Pending {
@@ -11,7 +11,7 @@ export interface Pending {
 }
 export interface Notice extends Activity {
   id: string; token: string; updatedAt: number;
-  preview?:string;tool?:string;
+  preview?:string;tool?:string;phase?:NoticePhase;
   request?: { key: string; kind: string; toolName?: string; reason?: string; questions?: readonly Question[] };
 }
 export interface NotificationState { items: Notice[]; activity: Activity; hidden: number }
@@ -76,7 +76,7 @@ export function createNotifications(sessions: Sessions, pending: Store<ReadonlyM
         const events = binding?.eventSource?.getSnapshot();
         if(running&&!record.running)previews.delete(id);
         if(events?.entries&&!record.awaitingStart)previews.set(id,noticePreview(events.entries.slice(-200)));
-        else if(events&&record.revision!==events.revision){const visible=noticePreview(events.change.entries??(events.change.entry?[events.change.entry]:[]));if(visible.text||visible.tool)previews.set(id,visible);}
+        else if(events&&record.revision!==events.revision&&events.change.kind!=='prepend')previews.set(id,noticePreview(events.change.entries??(events.change.entry?[events.change.entry]:[]),previews.get(id)));
         if (events && record.revision !== events.revision) {
           record.revision = events.revision;
           if (events.change.kind === 'append') for (const entry of events.change.entries??[]) {
@@ -101,7 +101,7 @@ export function createNotifications(sessions: Sessions, pending: Store<ReadonlyM
         const token = `${record.round}:${request?.key ?? ''}`;
         if (dismissed.get(id) === token) { hidden++; continue; }
         const ttl = lifetime[activity.pose]; if (ttl && now() - record.updatedAt >= ttl) continue;
-        items.push({ ...activity, id, token, updatedAt: record.updatedAt, preview:previews.get(id)?.text||undefined,tool:previews.get(id)?.tool, request: request && typeof request.key === 'string' ? { key: request.key, kind: String(request.kind), toolName: request.toolName, reason: request.reason, questions: request.questions } : undefined });
+        items.push({ ...activity, id, token, updatedAt: record.updatedAt, preview:previews.get(id)?.text||undefined,tool:activity.pose==='running'?previews.get(id)?.tool:undefined,phase:activity.pose==='running'?previews.get(id)?.phase:undefined, request: request && typeof request.key === 'string' ? { key: request.key, kind: String(request.kind), toolName: request.toolName, reason: request.reason, questions: request.questions } : undefined });
       }
       items.sort((a, b) => (latestFirst ? 0 : priority[a.pose] - priority[b.pose]) || b.updatedAt - a.updatedAt || a.id.localeCompare(b.id));
       state = { items, hidden, activity: items[0] ?? IDLE };
@@ -133,7 +133,7 @@ export function createNotifications(sessions: Sessions, pending: Store<ReadonlyM
       }
       if (command.type === 'open') {
         if (!sessions.open) throw new Error('宿主未提供打开会话能力');
-        sessions.open(item.id);
+        await sessions.open(item.id);
         if (item.pose === 'review') dismissed.set(item.id, item.token);
         publish();
         return;

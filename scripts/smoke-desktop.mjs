@@ -11,6 +11,14 @@ try{
  await new Promise(resolve=>setTimeout(resolve,400));
  let state=await host.desktop.inspect();const paintedDeadline=Date.now()+4000;while((!state.visible||!state.topmost||!state.noticesVisible)&&Date.now()<paintedDeadline){await new Promise(resolve=>setTimeout(resolve,100));state=await host.desktop.inspect();}assert.equal(state.visible,true,'visible');assert.equal(state.topmost,true,'topmost');assert.equal(state.noticesVisible,true,'notices');
  assert.equal(state.above,true);assert.ok(state.noticeBounds.y<state.petBounds.y,'bottom pet displays notifications above');
+ assert.equal(state.noticeSubtitle,'正在思考');assert.ok(state.noticeSubtitleBounds.y>=state.noticeTitleBounds.y+state.noticeTitleBounds.height,'progress is below the task title');assert.equal(state.noticeProgress,true);
+ await writeFile('.preview/electron-thinking.png',Buffer.from(state.image,'base64'));
+ for(const [phase,tool,preview,expected] of [['responding',undefined,'我先检查设置和相关文件。','我先检查设置和相关文件。'],['tool','read_file',undefined,'正在查看文件'],['thinking',undefined,'previous commentary','正在思考'],['preparing-tool',undefined,undefined,'正在准备工具调用'],['compacting',undefined,undefined,'正在整理上下文']]){
+  await host.desktop.publish(token,{spriteKey:pet.url,language:'zh-CN',theme:'light',notifications:{activity:{pose:'running'},items:[{id:'fixture',token:'1',title:'阅读科研项目内容',pose:'running',phase,tool,preview}],hidden:0}});await new Promise(resolve=>setTimeout(resolve,80));
+  const progress=await host.desktop.inspect();assert.equal(progress.noticeSubtitle,expected);assert.ok(progress.noticeSubtitleBounds.y>=progress.noticeTitleBounds.y+progress.noticeTitleBounds.height);assert.equal(progress.noticeProgress,true);
+  await writeFile('.preview/electron-progress-'+phase+'.png',Buffer.from(progress.image,'base64'));
+ }
+ await host.desktop.publish(token,{spriteKey:pet.url,language:'zh-CN',theme:'light',notifications:{activity:{pose:'running'},items:[{id:'fixture',token:'1',title:'阅读科研项目内容',pose:'running',phase:'thinking'}],hidden:0}});await new Promise(resolve=>setTimeout(resolve,80));state=await host.desktop.inspect();
  const petScreenY=state.bounds.y+state.petBounds.y;
  for(const action of ['drag-loss','drag-cancel','drag-native-up','drag-escape','blur']){
   host.desktop['send']({type:'fixture-ui',action:'drag-start'});await new Promise(resolve=>setTimeout(resolve,80));

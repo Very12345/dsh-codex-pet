@@ -6,7 +6,7 @@ import {
 /** DSH Host 插件的宠物资源和配置路由。 */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { fileURLToPath } from "node:url";
-import { readFile, mkdir } from "node:fs/promises";
+import { readFile, mkdir, mkdtemp } from "node:fs/promises";
 import { join } from "node:path";
 import { spawn, execFile } from "node:child_process";
 import { BASE } from "./model.ts";
@@ -141,6 +141,13 @@ export async function createHost(
             if (path === `${BASE}/api/update` && updateHandler) {
                 await updateHandler(req, res);
                 return;
+            }
+            if(path===`${BASE}/api/workspace`){
+                if(req.method!=='POST'){json(res,405,{error:'方法不支持'});return;}
+                if(!trustedWrite(req)){json(res,403,{error:'请求来源校验失败'});return;}
+                await body(req);
+                const root=join(library.dataRoot,'workspaces');await mkdir(root,{recursive:true});
+                const cwd=await mkdtemp(join(root,'task-'));json(res,200,{cwd});return;
             }
             if (req.method === "GET" && path === `${BASE}/api/state`) {
                 json(res, 200, snapshot());

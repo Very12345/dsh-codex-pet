@@ -34,11 +34,13 @@ try{
   window.fixtureStatus=store(new Map());window.list=store({ids:['fixture'],byId:{fixture:{id:'fixture',title:'独立桌面测试任务',running:true,retainedBy:{mainView:1}}}});
   window.live=store({running:true,lastAgentError:null});window.events=store({revision:0,change:{kind:'replace',entries:[]}});
   window.disposers=[];window.locale=store({active:'zh-CN'});window.approved=[];window.replies=[];window.cancels=0;live.cancel=async()=>{cancels++;return {ok:true};};live.prompt=async(content,mode)=>{replies.push({content,mode});return {ok:true};};
-  petPlugin.apply({effect(fn){disposers.push(fn());},locale,sessions:{list,binding:()=>({session:live,eventSource:events})},uiWorkspace:{openSession(id){window.opened=id;}},uiSession:{sessionStatus:fixtureStatus},slots:{inject(name,fn){fn();},register(options,Component){if(options.name==='shell.overlay')renderPet(Component);return()=>{};}}});
+  petPlugin.apply({effect(fn){disposers.push(fn());},locale,sessions:{list,open(){window.hydrationOnlyOpen=true;},binding:()=>({session:live,eventSource:events})},uiWorkspace:{openSession(id){window.opened=id;}},uiSession:{sessionStatus:fixtureStatus},slots:{inject(name,fn){fn();},register(options,Component){if(options.name==='shell.overlay')renderPet(Component);return()=>{};}}});
  });
  const deadline=Date.now()+20000;
  while(!host.desktop.running || await page.locator('.dcp-pet-button').count()){if(Date.now()>deadline)throw new Error('Desktop ownership timed out');await new Promise(r=>setTimeout(r,100));}
- const state=await host.desktop.inspect();assert.equal(state.visible,true);assert.equal(state.noticesVisible,true);assert.equal(state.focused,false);
+ const state=await host.desktop.inspect();assert.equal(state.visible,true);assert.equal(state.noticesVisible,true);assert.equal(state.focused,false);assert.equal(state.hostFocusRequests,0);
+ host.desktop['send']({type:'fixture-ui',action:'open-task',id:'fixture'});await page.waitForFunction(()=>window.opened==='fixture');
+ const focusDeadline=Date.now()+5000;while((await host.desktop.inspect()).hostFocusRequests!==1){if(Date.now()>focusDeadline)throw new Error('Host focus was not requested after navigation');await new Promise(resolve=>setTimeout(resolve,50));}assert.notEqual(await page.evaluate(()=>window.hydrationOnlyOpen),true);
  // A hidden/minimized document must not govern the native window's lifetime.
  await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));});
  await new Promise(r=>setTimeout(r,2700));assert.equal((await host.desktop.inspect()).visible,true);

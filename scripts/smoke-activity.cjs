@@ -51,7 +51,7 @@ if (!smokeRoot)
       live.prompt=async parts=>{window.petSent=parts[0].text;return {ok:true}};
       const binding={session:live,eventSource:events};
       window.petLocale=store({active:'zh'});
-      petPlugin.apply({locale:petLocale,sessions:{list:petList,binding:id=>id==='background'?background:binding,async create(){petList.set({...petList.value,ids:[...petList.value.ids,'new-task'],byId:{...petList.value.byId,'new-task':{id:'new-task',title:'新会话',running:false}}});return 'new-task'}},uiWorkspace:{openSession(id){window.openedPetSession=id}},uiSession:{sessionStatus:sessionStatus},slots:{inject(name,fn){fn()},register(options,Component){if(options.name==='settings.section')window.petSection=options;if(options.name==='shell.overlay')renderPet(Component);return()=>{}}}});
+      petPlugin.apply({locale:petLocale,sessions:{open(){window.hydrationOnlyOpen=true},list:petList,binding:id=>id==='background'?background:binding,async create(){petList.set({...petList.value,ids:[...petList.value.ids,'new-task'],byId:{...petList.value.byId,'new-task':{id:'new-task',title:'新会话',running:false}}});return 'new-task'}},uiWorkspace:{openSession(id){window.openedPetSession=id}},uiSession:{sessionStatus:sessionStatus},slots:{inject(name,fn){fn()},register(options,Component){if(options.name==='settings.section')window.petSection=options;if(options.name==='shell.overlay')renderPet(Component);return()=>{}}}});
     `);
     const waitFor = (condition) =>
       page.evaluate(
@@ -62,16 +62,16 @@ if (!smokeRoot)
     );
     await page.evaluate("live.set({running:true,lastAgentError:null})");
     await waitFor(
-      `document.querySelector('.dcp-bubble-link')?.textContent.includes('正在工作')`,
+      `document.querySelector('.dcp-bubble-link')?.textContent.includes('正在思考')`,
     );
     await page.evaluate(
       `sessionStatus.set(new Map([['smoke',{pendingInteraction:{kind:'approval',key:'approval-1',sessionId:'smoke',toolName:'终端',reason:'测试审批',answer:async value=>{window.petDecision=value;sessionStatus.set(new Map())}}}]]))`,
     );
     await waitFor(
-      `document.querySelector('.dcp-bubble-link')?.textContent.includes('等待你处理')`,
+      `document.querySelector('.dcp-bubble-link')?.textContent.includes('需要输入')`,
     );
     await page.evaluate(`document.querySelector('.dcp-bubble-link').click()`);
-    assert.equal(await page.evaluate("window.openedPetSession"), "smoke");
+    assert.equal(await page.evaluate("window.openedPetSession"), "smoke");assert.notEqual(await page.evaluate('window.hydrationOnlyOpen'),true);
     await page.evaluate(
       `document.querySelector('button[title="查看并处理"]').click()`,
     );
@@ -92,13 +92,13 @@ if (!smokeRoot)
       `sessionStatus.set(new Map());events.set({revision:1,change:{kind:'append',entries:[{type:'event',event:{type:'turn/end',data:{reason:{kind:'completed'}}}}]}});live.set({running:false,lastAgentError:null})`,
     );
     await waitFor(
-      `document.querySelector('.dcp-bubble-link')?.textContent.includes('已完成')`,
+      `document.querySelector('.dcp-bubble-link')?.textContent.includes('就绪')`,
     );
     await page.evaluate(
       `sessionStatus.set(new Map([['smoke',{pendingInteraction:{kind:'plan-review',key:'plan-2',sessionId:'smoke',questions:[{id:'plan',question:'是否实施计划？',detail:'先检查，再修改。',options:[{label:'实施计划'},{label:'先修改'}]}],answer:async value=>{window.petAnswer=value;sessionStatus.set(new Map())}}}]]))`,
     );
     await waitFor(
-      `document.querySelector('.dcp-bubble-link')?.textContent.includes('等待你处理')`,
+      `document.querySelector('.dcp-bubble-link')?.textContent.includes('需要输入')`,
     );
     await page.evaluate(
       `document.querySelector('button[title="查看并处理"]').click()`,
@@ -222,7 +222,7 @@ if (!smokeRoot)
       `petList.set({current:'english',ids:['english'],byId:{english:{id:'english',title:'用户标题保持原文',running:true}}});live.set({running:true,lastAgentError:null})`,
     );
     await waitFor(
-      `document.querySelector('.dcp-bubble-link')?.textContent.includes('Working')`,
+      `document.querySelector('.dcp-bubble-link')?.textContent.includes('Thinking')`,
     );
     assert.equal(
       await page.evaluate(

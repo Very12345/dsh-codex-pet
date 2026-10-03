@@ -12,6 +12,7 @@ export function compatibleSessions(
   sessions: HostSessions,
   navigate?: SessionNavigate,
   status?: Store<ReadonlyMap<string, SessionStatusRow>>,
+  allocateWorkspace?:()=>Promise<string>,
 ): Sessions & {dispose():void} {
   type Binding = NonNullable<ReturnType<Sessions['binding']>>;
   const cache = new WeakMap<object, Binding>();
@@ -37,9 +38,10 @@ export function compatibleSessions(
     status: status ?? sessions.status,
     using: sessions.using?.bind(sessions),
     open: id => navigate ? navigate(id) : sessions.open?.(id),
-    create: options => {
+    create: async options => {
       if (!sessions.create) throw new Error('创建会话尚不可用，请重试');
-      return sessions.create(options);
+      const cwd=options?.cwd??await allocateWorkspace?.();
+      return sessions.create(cwd===undefined?options:{...options,cwd});
     },
     binding(id) {
       if(disposed)return undefined;

@@ -7351,6 +7351,38 @@
     }
   };
 
+  // src/notice-copy.ts
+  var tools = {
+    web_search: ["\u6B63\u5728\u641C\u7D22\u7F51\u9875", "Searching the web"],
+    qianwen_search: ["\u6B63\u5728\u641C\u7D22\u7F51\u9875", "Searching the web"],
+    web_fetch: ["\u6B63\u5728\u8BFB\u53D6\u7F51\u9875", "Reading a web page"],
+    read_file: ["\u6B63\u5728\u67E5\u770B\u6587\u4EF6", "Reading files"],
+    glob: ["\u6B63\u5728\u67E5\u627E\u6587\u4EF6", "Finding files"],
+    grep: ["\u6B63\u5728\u641C\u7D22\u5185\u5BB9", "Searching files"],
+    list_directory: ["\u6B63\u5728\u67E5\u770B\u6587\u4EF6\u5939", "Listing folders"],
+    edit_file: ["\u6B63\u5728\u4FEE\u6539\u6587\u4EF6", "Editing files"],
+    write_file: ["\u6B63\u5728\u5199\u5165\u6587\u4EF6", "Writing files"],
+    apply_patch: ["\u6B63\u5728\u4FEE\u6539\u6587\u4EF6", "Editing files"],
+    bash: ["\u6B63\u5728\u8FD0\u884C\u547D\u4EE4", "Running a command"],
+    pwsh: ["\u6B63\u5728\u8FD0\u884C\u547D\u4EE4", "Running a command"],
+    run_code: ["\u6B63\u5728\u8FD0\u884C\u4EE3\u7801", "Running code"],
+    qianwen_image: ["\u6B63\u5728\u751F\u6210\u56FE\u7247", "Generating an image"],
+    qianwen_voice: ["\u6B63\u5728\u8F6C\u5199\u97F3\u9891", "Transcribing audio"]
+  };
+  function noticeCopy(item, t) {
+    if (item.pose === "waiting") return { text: t("\u9700\u8981\u8F93\u5165", "Needs input"), busy: false };
+    if (item.pose === "failed") return { text: t("\u5DF2\u62E6\u622A", "Blocked"), busy: false };
+    if (item.pose === "review") return { text: item.preview || t("\u5C31\u7EEA", "Ready"), busy: false };
+    if (item.phase === "compacting") return { text: t("\u6B63\u5728\u6574\u7406\u4E0A\u4E0B\u6587", "Compacting context"), busy: true };
+    if (item.phase === "preparing-tool") return { text: t("\u6B63\u5728\u51C6\u5907\u5DE5\u5177\u8C03\u7528", "Preparing a tool call"), busy: true };
+    if (item.phase === "tool" || item.tool) {
+      const name = item.tool || "", copy = tools[name] ?? (name.startsWith("computer_") ? ["\u6B63\u5728\u64CD\u4F5C\u7535\u8111", "Using the computer"] : void 0);
+      return { text: copy ? t(copy[0], copy[1]) : t("\u6B63\u5728\u4F7F\u7528\u5DE5\u5177", "Using a tool"), busy: true };
+    }
+    if (item.phase === "responding") return { text: item.preview || t("\u6B63\u5728\u751F\u6210\u56DE\u590D", "Writing a reply"), busy: true };
+    return { text: t("\u6B63\u5728\u601D\u8003", "Thinking"), busy: true };
+  }
+
   // native/electron/caret.ts
   var layouts = /* @__PURE__ */ new WeakMap();
   function editorCaret(editor, measure, mirror) {
@@ -7581,7 +7613,8 @@
     (0, import_react2.useEffect)(() => {
       const fixture = (value) => {
         if (value.type !== "fixture-ui" || value.id !== item.id) return;
-        if (value.action === "reply") openReply();
+        if (value.action === "open-task") void openTask();
+        else if (value.action === "reply") openReply();
         else if (value.action === "reply-text") {
           setDraft(value.text || "");
           drafts.set(key, value.text || "");
@@ -7592,15 +7625,26 @@
         subscribers.delete(fixture);
       };
     }, [item.id, key, draft, busy]);
-    const status = item.pose === "running" ? item.tool ? t("\u6B63\u5728\u4F7F\u7528 ", "Using ") + item.tool : t("\u6B63\u5728\u601D\u8003", "Thinking") : item.pose === "review" ? t("\u5DF2\u5B8C\u6210", "Completed") : item.pose === "waiting" ? t("\u7B49\u5F85\u4F60\u5904\u7406", "Needs your input") : t("\u4EFB\u52A1\u51FA\u9519", "Blocked");
-    return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("article", { className: "notice " + (expanded ? "is-expanded" : ""), "data-hit": true, "data-notice": item.id, children: [
+    const copy = noticeCopy(item, t);
+    const openTask = async () => {
+      setError("");
+      try {
+        await command({ type: "open", id: item.id, token: item.token });
+        const result = await bridge.focusHost();
+        if (!result.ok) setError(t("\u4F1A\u8BDD\u5DF2\u5207\u6362\uFF0C\u4F46\u672A\u80FD\u5C06 DSH \u7A97\u53E3\u5E26\u5230\u524D\u53F0\u3002", "Task opened, but Windows did not bring DSH to the foreground."));
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+      }
+    };
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("article", { className: "notice " + (expanded ? "is-expanded" : ""), "data-hit": true, "data-notice": item.id, "data-phase": item.phase || item.pose, children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { className: "dismiss", title: t("\u5173\u95ED\u63D0\u9192", "Dismiss"), onClick: () => void command({ type: "dismiss", id: item.id, token: item.token }).catch((cause) => setError(String(cause))), children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Icon, { name: "close" }) }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "notice-header", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("button", { className: "notice-copy", onClick: () => void command({ type: "open", id: item.id, token: item.token }).catch((cause) => setError(String(cause))), children: [
-          item.pose === "review" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "complete-mark", children: "\u2713" }) : null,
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: item.title }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "separator", children: " \xB7 " }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: item.tool ? status : item.preview || status })
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("button", { className: "notice-copy", onClick: () => void openTask(), children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("strong", { children: [
+            item.pose === "review" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "complete-mark", children: "\u2713" }) : null,
+            item.title
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "notice-subtitle " + (copy.busy ? "is-active" : ""), children: copy.text })
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "notice-actions", children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { className: "round", "aria-pressed": expanded, title: item.request ? t("\u5904\u7406\u8BF7\u6C42", "Respond to request") : t("\u56DE\u590D\u4F1A\u8BDD", "Reply to conversation"), onClick: () => item.request ? showRequest() : expanded && draft.trim() ? void send() : openReply(), children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Icon, { name: item.request ? "question" : "reply" }) }),
@@ -7852,7 +7896,7 @@
       return () => document.removeEventListener("pointerdown", outside, true);
     }, [compose]);
     (0, import_react2.useEffect)(() => {
-      window.__petInspect = () => ({ pose, cell, above, controls, panelOffsetX, toolbarAppearance: document.querySelector(".toolbar") ? { width: document.querySelector(".toolbar").getBoundingClientRect().width, height: document.querySelector(".toolbar").getBoundingClientRect().height } : null, replyStyle: document.querySelector(".notice-actions .round") ? { color: getComputedStyle(document.querySelector(".notice-actions .round")).color, background: getComputedStyle(document.querySelector(".notice-actions .round")).backgroundColor, iconWidth: document.querySelector(".notice-actions .round svg")?.getBoundingClientRect().width } : null, callPhase: call.phase, callVisible: !!document.querySelector(".call-panel"), callTitle: call.title, callSaid: call.said, rendererDragging: dragging.current, toolbarButtonCount: document.querySelectorAll(".toolbar button").length, collapsed, composerVisible: compose && !collapsed, composerText: draft, composerError: document.querySelector(".composer-error")?.textContent || "", noticesVisible: !collapsed && items.length > 0, petBounds: pet.current?.getBoundingClientRect().toJSON(), toolbarBounds: document.querySelector(".toolbar")?.getBoundingClientRect().toJSON(), noticeBounds: document.querySelector(".notice")?.getBoundingClientRect().toJSON(), noticePreview: document.querySelector(".notice-copy")?.textContent, requestVisible: !!document.querySelector(".request"), replyVisible: !!document.querySelector(".follow-up") });
+      window.__petInspect = () => ({ pose, cell, above, controls, panelOffsetX, toolbarAppearance: document.querySelector(".toolbar") ? { width: document.querySelector(".toolbar").getBoundingClientRect().width, height: document.querySelector(".toolbar").getBoundingClientRect().height } : null, replyStyle: document.querySelector(".notice-actions .round") ? { color: getComputedStyle(document.querySelector(".notice-actions .round")).color, background: getComputedStyle(document.querySelector(".notice-actions .round")).backgroundColor, iconWidth: document.querySelector(".notice-actions .round svg")?.getBoundingClientRect().width } : null, callPhase: call.phase, callVisible: !!document.querySelector(".call-panel"), callTitle: call.title, callSaid: call.said, rendererDragging: dragging.current, toolbarButtonCount: document.querySelectorAll(".toolbar button").length, collapsed, composerVisible: compose && !collapsed, composerText: draft, composerError: document.querySelector(".composer-error")?.textContent || "", noticesVisible: !collapsed && items.length > 0, petBounds: pet.current?.getBoundingClientRect().toJSON(), toolbarBounds: document.querySelector(".toolbar")?.getBoundingClientRect().toJSON(), noticeBounds: document.querySelector(".notice")?.getBoundingClientRect().toJSON(), noticePreview: document.querySelector(".notice-copy")?.textContent, noticeTitleBounds: document.querySelector(".notice-copy strong")?.getBoundingClientRect().toJSON(), noticeSubtitleBounds: document.querySelector(".notice-subtitle")?.getBoundingClientRect().toJSON(), noticeSubtitle: document.querySelector(".notice-subtitle")?.textContent, noticeProgress: document.querySelector(".notice-subtitle")?.classList.contains("is-active"), requestVisible: !!document.querySelector(".request"), replyVisible: !!document.querySelector(".follow-up") });
     }, [pose, cell, above, controls, panelOffsetX, collapsed, compose, draft, items.length, call]);
     const openComposer = () => {
       setCompose(true);

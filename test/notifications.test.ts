@@ -186,3 +186,18 @@ test('没有 list.current 时用 retainedBy.mainView 读取当前会话快照', 
     assert.equal(state.items[0]?.sessionId, 'a');
   } finally { engine.dispose(); }
 });
+
+test('incremental event windows publish intermediate phases and clear finished tool feedback',()=>{
+ const x=setup();let revision=0;
+ const append=(type:string,data?:any)=>x.bindings.a.eventSource.set({revision:++revision,change:{kind:'append',entries:[{type:type==='assistant/live-chunk'?'transient':'event',event:{type,data}}]}});
+ try{
+  append('turn/start');const token=x.state.items.find(item=>item.id==='a')!.token;
+  append('assistant/live-chunk',{attemptId:'attempt',chunk:{type:'text-delta',text:'Looking '}});
+  append('assistant/live-chunk',{attemptId:'attempt',chunk:{type:'text-delta',text:'at files'}});
+  assert.equal(x.state.items.find(item=>item.id==='a')!.preview,'Looking at files');
+  append('tool/call',{callId:'call',name:'read_file'});assert.equal(x.state.items.find(item=>item.id==='a')!.phase,'tool');
+  append('tool/result',{message:{callId:'call'}});const item=x.state.items.find(item=>item.id==='a')!;assert.equal(item.phase,'thinking');assert.equal(item.tool,undefined);assert.equal(item.token,token);
+  append('step/start');assert.equal(x.state.items.find(item=>item.id==='a')!.preview,undefined);
+  append('compaction/start');assert.equal(x.state.items.find(item=>item.id==='a')!.phase,'compacting');append('compaction/end');assert.equal(x.state.items.find(item=>item.id==='a')!.phase,'thinking');
+ }finally{x.engine.dispose();}
+});

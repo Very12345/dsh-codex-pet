@@ -7,7 +7,7 @@ import type { PetLocaleStore } from "./pet-locales.ts";
 /** 只通过 DSH 公共插槽与 Session 快照接入，独立于其他宠物插件。 */
 import React, { useEffect, useState, useRef } from "react";
 import { Companion, Settings, usePetController } from "./ui.tsx";
-import { IDLE, type Activity } from "./model.ts";
+import { BASE, IDLE, type Activity } from "./model.ts";
 import { type Sessions, type PendingStore, type Store, type SessionStatusRow } from "./activity.ts";
 import type { ISessions, SessionTarget } from "@deepseek-ai/dsh-api-session-controller/client";
 import type { UiWorkspace } from "@deepseek-ai/dsh-client-ui-workspace/client";
@@ -265,12 +265,17 @@ export function apply(ctx: ClientContext): void {
   const sessions = compatibleSessions(
     ctx.sessions as unknown as Sessions,
     id => {
-      const open = (ctx.sessions as unknown as Sessions).open;
-      if (open) return open.call(ctx.sessions, id);
       const uiWorkspace = probe<Pick<UiWorkspace, "openSession">>(ctx, "uiWorkspace");
       if (uiWorkspace) return uiWorkspace.openSession(id as SessionTarget);
+      const open = (ctx.sessions as unknown as Sessions).open;
+      if (open) return open.call(ctx.sessions, id);
+      throw new Error('当前宿主未提供会话导航能力');
     },
     liveSessionStatus(ctx),
+    async()=>{
+      const response=await fetch(`${BASE}/api/workspace`,{method:'POST',headers:{'Content-Type':'application/json','x-dsh-pet':'1'},body:'{}'});
+      const value=await response.json();if(!response.ok||typeof value.cwd!=='string')throw new Error(value.error||'无法创建临时工作目录');return value.cwd;
+    },
   );
   ctx.effect?.(()=>()=>sessions.dispose());
   // Cordis 的 reflect.get 允许探测旧版不存在的服务，不声明不存在的必需依赖。

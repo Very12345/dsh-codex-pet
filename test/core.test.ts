@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, rm, symlink } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, symlink, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createServer, request as httpRequest, type IncomingMessage } from 'node:http';
@@ -61,5 +61,9 @@ test('HTTP真实路由：错误方法不写配置；资产越界、跨站与DNS 
     assert.equal((await fetch(base + '/asset/' + encodeURIComponent('../config.json'))).status, 400);
     assert.equal((await fetch(base + '/api/config', { method: 'POST', headers: { 'content-type': 'application/json', 'x-dsh-pet': '1' }, body: '{"size":180}' })).status, 200);
     assert.equal(JSON.parse(await readFile(join(root, 'config.json'), 'utf8')).size, 180);
+    assert.equal((await fetch(base+'/api/workspace')).status,405);
+    assert.equal((await fetch(base+'/api/workspace',{method:'POST',headers:{'content-type':'application/json'},body:'{}'})).status,403);
+    const createWorkspace=async()=>{const response=await fetch(base+'/api/workspace',{method:'POST',headers:{'content-type':'application/json','x-dsh-pet':'1'},body:JSON.stringify({cwd:'/untrusted/path'})});assert.equal(response.status,200);return (await response.json()).cwd as string;};
+    const first=await createWorkspace(),second=await createWorkspace();assert.notEqual(first,second);assert.ok(first.startsWith(join(root,'workspaces','task-')));assert.ok((await stat(first)).isDirectory());assert.ok((await stat(second)).isDirectory());
   } finally { host.dispose(); await new Promise<void>(done => server.close(() => done())); await rm(root, { recursive: true, force: true }); }
 });
