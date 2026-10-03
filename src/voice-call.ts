@@ -1,7 +1,7 @@
 import {LocalVad,type CallMicrophone} from './live-vad.ts';import type {VoiceSessions,VoiceObservation} from './voice-session.ts';
+import {spokenText} from './speech-text.ts';export {spokenText} from './speech-text.ts';
 export type CallPhase='off'|'starting'|'listening'|'recognizing'|'working'|'preparing-audio'|'speaking'|'muted'|'error';
 export interface CallState {phase:CallPhase;active:boolean;muted:boolean;title:string;sessionId:string|null;heard:string;said:string;error:string;level:number}
-export function spokenText(text:string){return text.replace(/```[\s\S]*?(?:```|$)/g,' 代码内容请查看对话。 ').replace(/\[([^\]]+)\]\([^)]*\)/g,'$1').replace(/https?:\/\/\S+/g,'链接').replace(/[#*_`>|]/g,'').replace(/\s+/g,' ').trim().slice(0,240);}
 type Dependencies={microphone:CallMicrophone;sessions:VoiceSessions;ready(signal:AbortSignal):Promise<void>;recognize(audio:Uint8Array,signal:AbortSignal):Promise<string>;synthesize(text:string,signal:AbortSignal):Promise<Uint8Array>;publish(state:CallState):void;silenceMs?:number};
 export class LocalVoiceCall {
  private generation=0;private controller?:AbortController;private output?:AbortController;private vad:LocalVad;private pending=0;private tail=Promise.resolve();private seen='';private lastReplyKey='';private lastSpoken='';private lastLevelAt=0;private off?:()=>void;private deferred='';private captureReady=false;private waitingAnnounced=false;
@@ -46,7 +46,7 @@ export class LocalVoiceCall {
   if(!value.running&&value.reply&&value.replyKey!==this.lastReplyKey){this.lastReplyKey=value.replyKey;void this.say(spokenText(value.reply));}
  }
  private async say(text:string){
-  if(!this.active||!text.trim())return;if(!this.captureReady||this.vad.inSpeech||this.pending>0){this.deferred=text;return;}this.interrupt();const generation=this.generation,output=new AbortController();this.output=output;const signal=AbortSignal.any([output.signal,this.controller!.signal]);
+  text=spokenText(text);if(!this.active||!text)return;if(!this.captureReady||this.vad.inSpeech||this.pending>0){this.deferred=text;return;}this.interrupt();const generation=this.generation,output=new AbortController();this.output=output;const signal=AbortSignal.any([output.signal,this.controller!.signal]);
   this.lastSpoken=text;this.update({phase:'preparing-audio',said:text,error:''});
   try{const wav=await this.deps.synthesize(text,signal);signal.throwIfAborted();if(generation!==this.generation)return;this.update({phase:'speaking'});await this.deps.microphone.play(wav,signal);}
   catch(error){if(!signal.aborted&&generation===this.generation)this.update({error:error instanceof Error?error.message:String(error)});}

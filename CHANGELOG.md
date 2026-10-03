@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.2] - 2026-10-03
+
+- Filter emoji sequences, shortcodes, backslashes and markup from speech; summarize code, formulas, tables and local paths with brief notices.
+- Apply filtering to every playback path, preserve numbers and currency, and keep decoration-only replies silent without changing displayed replies or session history.
+- Cover escaped prose, Unicode emoji, monetary values, local paths and repeat playback with regression tests.
+
 ## [0.3.1] - 2026-10-03
 
 - Replace the plugin concurrency-count busy error with cancellable serial Windows synthesis; newer replies cancel stale requests.

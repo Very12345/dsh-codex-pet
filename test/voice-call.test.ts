@@ -28,6 +28,11 @@ test('new speech interrupts pending audio playback while the backend task contin
 test('removing the pinned target ends microphone capture without creating a replacement task',async()=>{
  const x=fixture();await x.call.start();x.observe({missing:true,stamp:'closed'});assert.equal(x.state.active,false);assert.equal(x.state.phase,'error');assert.equal(x.stops,1);assert.equal(x.sends,0);
 });
+test('reply and repeat playback use the same filtered prose, and emoji-only replies stay silent',async()=>{
+ const x=fixture();await x.call.start();x.observe({reply:'✅ **已完成**，路径 `C:\\test\\a.txt`。👩🏽‍💻',replyKey:'filtered',stamp:'2'});await flush();await flush();assert.deepEqual(x.spoken,['已完成，路径 本地路径。']);assert.equal(x.state.said,x.spoken[0]);
+ x.setRecognized('再说一遍');x.utterance();await flush();await flush();assert.deepEqual(x.spoken,['已完成，路径 本地路径。','已完成，路径 本地路径。']);
+ x.observe({reply:'✅ 👍🏽',replyKey:'decoration',stamp:'3'});await flush();assert.equal(x.spoken.length,2);x.call.stop();
+});
 test('results arriving during microphone preparation wait for capture readiness, and request notices are not repeated',async()=>{
  const x=fixture();let ready!:()=>void;const start=x.deps.microphone.start;x.deps.microphone.start=async fn=>{await start(fn);await new Promise<void>(resolve=>{ready=resolve;});};const pending=x.call.start();await flush();x.observe({reply:'准备期间的结果',replyKey:'late-result',stamp:'2'});await flush();assert.equal(x.spoken.length,0);ready();await pending;await flush();assert.deepEqual(x.spoken,['准备期间的结果']);x.observe({waiting:true,stamp:'3'});await flush();const count=x.spoken.length;x.observe({waiting:true,stamp:'4'});await flush();assert.equal(x.spoken.length,count);x.call.stop();
 });
