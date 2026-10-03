@@ -101,6 +101,19 @@ test('local-only calls reject a cloud recognizer before any audio reaches its re
  assert.throws(()=>runtime.voiceReady(token,true),/本地识别器/);await assert.rejects(runtime.transcribe(token,Buffer.from(encodeWave([Float32Array.from([.1,.2])],16000)).toString('base64'),new AbortController().signal,true),/本地识别器/);assert.equal(resolved,0);
 });
 
+test('new speech replaces stale synthesis; late cleanup and aborted callers cannot cancel the current reply',async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'dsh-pet-tts-replace-')),library=new PetLibrary(resolve('assets/codex'),dir);await library.init();const child=new Helper();
+ const jobs:{signal:AbortSignal;resolve:(audio:Buffer)=>void}[]=[];
+ const output={voices:async()=>[],dispose(){},synthesize:(_text:string,_voice:string,_rate:number,_language:string,signal:AbortSignal)=>new Promise<Buffer>((resolve,reject)=>{jobs.push({signal,resolve});signal.addEventListener('abort',()=>reject(new Error('cancelled')),{once:true});})};
+ const runtime=new DesktopRuntime(library,{platform:'win32',output,spawn:(()=>{setImmediate(()=>child.message({type:'ready'}));return child;}) as unknown as typeof spawn});t.after(async()=>{runtime.dispose();await rm(dir,{recursive:true,force:true});});const {token}=await runtime.begin('tts-fixture');
+ const first=runtime.synthesize(token,{text:'旧回复'},new AbortController().signal),firstRejected=assert.rejects(first,/cancelled/);
+ const second=runtime.synthesize(token,{text:'新回复'},new AbortController().signal),secondRejected=assert.rejects(second,/cancelled/);await firstRejected;assert.equal(jobs[0].signal.aborted,true);assert.equal(jobs[1].signal.aborted,false);
+ const aborted=new AbortController();aborted.abort();await assert.rejects(runtime.synthesize(token,{text:'已放弃'},aborted.signal));assert.equal(jobs.length,2);assert.equal(jobs[1].signal.aborted,false);
+ const third=runtime.synthesize(token,{text:'最终回复'},new AbortController().signal);await secondRejected;assert.equal(jobs[1].signal.aborted,true);assert.equal(jobs[2].signal.aborted,false);jobs[2].resolve(Buffer.from('wave'));
+ assert.deepEqual(await third,{audioBase64:Buffer.from('wave').toString('base64')});
+ const final=runtime.synthesize(token,{text:'挂断期间'},new AbortController().signal),finalRejected=assert.rejects(final,/cancelled/);runtime.stop();await finalRejected;assert.equal(jobs[3].signal.aborted,true);
+});
+
 test('client bridge claims display only after paint, handles minimized-window actions and releases on disconnect',async()=>{
   const commands:unknown[]=[],display:boolean[]=[],posts:{path:string;data:any}[]=[];
   const provider=createCompanionProvider({command:async command=>{commands.push(command);},updateConfig:async()=>{},openSettings(){commands.push('settings');},externalDisplay:value=>display.push(value)});

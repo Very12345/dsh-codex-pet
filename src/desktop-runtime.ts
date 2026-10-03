@@ -30,6 +30,7 @@ export class DesktopRuntime {
   private stopTimer?:ReturnType<typeof setTimeout>;
   private heartbeat?:ReturnType<typeof setInterval>;
   private speechJobs=new Set<AbortController>();
+  private synthesis?:AbortController;
   private socketServer?:Server;
   private socket?:Socket;
   constructor(private library:PetLibrary, private options:{platform?:string; spawn?:typeof spawn; startupTimeoutMs?:number; reconnectMs?:number;speech?:()=>SpeechHost|undefined;output?:SpeechOutput;fixture?:boolean}={}) {
@@ -259,9 +260,11 @@ export class DesktopRuntime {
   voices(){if(!this.options.output)throw new Error('系统语音输出不可用');return this.options.output.voices();}
   async synthesize(token:unknown,value:Record<string,unknown>,caller:AbortSignal){
     this.authorized(token);if(!this.options.output)throw new Error('系统语音输出不可用');if(typeof value.text!=='string')throw new Error('语音输出文字无效');
+    caller.throwIfAborted();this.synthesis?.abort(new Error('语音回复已被更新'));
     const controller=new AbortController();this.speechJobs.add(controller);
+    this.synthesis=controller;
     try{const bytes=await this.options.output.synthesize(value.text,this.library.config.callVoice??'',this.library.config.callRate??0,value.language==='en'?'en':'zh',AbortSignal.any([caller,controller.signal]));return {audioBase64:bytes.toString('base64')};}
-    finally{this.speechJobs.delete(controller);}
+    finally{this.speechJobs.delete(controller);if(this.synthesis===controller)this.synthesis=undefined;}
   }
   callState(token:unknown,value:unknown){
     this.authorized(token);if(!value||typeof value!=='object')throw new Error('通话状态无效');const source=value as Record<string,unknown>;

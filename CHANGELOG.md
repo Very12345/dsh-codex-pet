@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.1] - 2026-10-03
+
+- Replace the plugin concurrency-count busy error with cancellable serial Windows synthesis; newer replies cancel stale requests.
+- Drain stdout and wait for process closure before the next job; cancel queued output on hangup or disposal.
+- Cover request bursts, queued cancellation, disposal and reply replacement with regression tests.
+
 ## [0.3.0] - 2026-10-03
 
 - Integrate continuous local calls into the pet voice button: bounded VAD utterances, local SenseVoice recognition, pinned DSH sessions, native queue/steer input and Windows system speech replies.
