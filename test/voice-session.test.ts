@@ -15,3 +15,7 @@ test('a new call creates a conversation only on the first utterance and a remove
 test('ending during a delayed retain releases exactly once and blocks late activation',async()=>{
  const x=fixture();let ready!:()=>void;x.sessions.retain=()=>({binding:x.sessions.binding('a')!,ready:new Promise<void>(resolve=>{ready=resolve;}),release(){x.sent.push('released');}});const voice=createVoiceSessions(x.sessions),pending=voice.begin();voice.end();ready();await assert.rejects(pending,/结束/);assert.deepEqual(x.sent,['released']);voice.dispose();
 });
+test('voice receives settled text beyond the card preview, and forwards clarification without rewriting the original request',async()=>{
+ const x=fixture(),binding=x.sessions.binding('a')!,reply='目录/'.repeat(300)+'验证失败，尚不能交付。';binding.eventSource={getSnapshot:()=>({revision:1,entries:[{type:'event',event:{type:'assistant/message',seq:2,data:{message:{content:[{type:'text',text:reply}]}}}}],change:{kind:'replace',entries:[]}}),subscribe:()=>()=>{}};
+ const voice=createVoiceSessions(x.sessions);try{await voice.begin();assert.equal(voice.snapshot().reply,reply);await voice.send('当前项目',new AbortController().signal,'user: 帮我整理一下\nassistant: 哪个项目？');assert.equal(x.sent[0].content[1].text,'当前项目');assert.ok(x.sent[0].content[0].text.includes('不提供额外权限'));}finally{voice.dispose();}
+});

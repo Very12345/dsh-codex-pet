@@ -113,6 +113,14 @@ test('new speech replaces stale synthesis; late cleanup and aborted callers cann
  assert.deepEqual(await third,{audioBase64:Buffer.from('wave').toString('base64')});
  const final=runtime.synthesize(token,{text:'挂断期间'},new AbortController().signal),finalRejected=assert.rejects(final,/cancelled/);runtime.stop();await finalRejected;assert.equal(jobs[3].signal.aborted,true);
 });
+test('spoken dialogue is leased to one call and session; hangup and lease disposal reject late requests',async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'dsh-pet-dialogue-')),library=new PetLibrary(resolve('assets/codex'),dir);await library.init();const child=new Helper(),requests:any[]=[];
+ const voiceModels=()=>({defaults:{currentSelection:()=>({provider:'test',model:'owned'})},sessions:{async projections(){return {values:{modelSelection:{next:{provider:'test',model:'owned'}}}};}},llm:{async *stream(request:any){requests.push(request);yield {type:'text-delta',text:JSON.stringify({action:'reply',reply:'你好，我在。'})};yield {type:'finish',reason:{kind:'stop'}};}}});
+ const runtime=new DesktopRuntime(library,{platform:'win32',voiceModels,spawn:(()=>{setImmediate(()=>child.message({type:'ready'}));return child;}) as unknown as typeof spawn});t.after(async()=>{runtime.dispose();await rm(dir,{recursive:true,force:true});});const {token}=await runtime.begin('dialogue-fixture');const task={sessionId:'owned',running:false,waiting:false,error:null,reply:''},value={callId:'owned-call-one',mode:'utterance',text:'你好',task};
+ await assert.rejects(runtime.dialogueBegin('wrong',value,new AbortController().signal),/expired/);await runtime.dialogueBegin(token,value,new AbortController().signal);assert.equal((await runtime.dialogueRespond(token,value,new AbortController().signal)).action,'reply');assert.equal(requests.length,1);
+ await assert.rejects(runtime.dialogueRespond(token,{...value,task:{...task,sessionId:'other'}},new AbortController().signal),/不一致/);runtime.dialogueEnd(token,value.callId);await assert.rejects(runtime.dialogueRespond(token,value,new AbortController().signal),/已结束/);
+ await runtime.dialogueBegin(token,{...value,callId:'owned-call-two'},new AbortController().signal);runtime.dialogueEnd(token,'owned-call-one');await runtime.dialogueRespond(token,{...value,callId:'owned-call-two'},new AbortController().signal);assert.notEqual(requests[0].sessionId,requests[1].sessionId);runtime.stop();await assert.rejects(runtime.dialogueRespond(token,{...value,callId:'owned-call-two'},new AbortController().signal),/expired/);
+});
 
 test('client bridge claims display only after paint, handles minimized-window actions and releases on disconnect',async()=>{
   const commands:unknown[]=[],display:boolean[]=[],posts:{path:string;data:any}[]=[];

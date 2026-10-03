@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0] - 2026-10-03
+
+- Add an independent spoken conversation layer using the selected DSH model for chat, follow-ups and clarification; delegate work to the original session with native permissions and queue/steer admission.
+- Generate concise conversational task summaries while preserving late facts, errors and cancellation; keep paths, long identifiers, code and directory listings out of speech instead of reading the first 240 characters.
+- Isolate model cursors and bounded ephemeral context; recognize corrections while the model thinks, cancel stale intentions before submission, and reject late work after hangup.
+- Document additional configured text-model calls and validate browser/host/native routing, spoken summaries, real Windows WAV decoding and call/session isolation. Voice naturalness still depends on the selected model and installed system voice.
+
 ## [0.3.2] - 2026-10-03
 
 - Filter emoji sequences, shortcodes, backslashes and markup from speech; summarize code, formulas, tables and local paths with brief notices.

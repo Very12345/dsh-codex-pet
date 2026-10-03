@@ -1,5 +1,5 @@
 /** A speech-only view of a reply. Never rewrite its displayed text or session history. */
-export function spokenText(text:string){
+export function spokenText(text:string,limit=240){
  let value=text
   .replace(/(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:\n\1[^\n]*(?=\n|$)|$)/g,' 代码内容请查看对话。 ')
   .replace(/```[\s\S]*?(?:```|$)/g,' 代码内容请查看对话。 ')
@@ -31,5 +31,8 @@ export function spokenText(text:string){
   .replace(/\s+/g,' ').trim();
  // Pure decoration is silent, rather than calling TTS with an empty payload.
  if(!/[\p{L}\p{N}]/u.test(value))return '';
- return Array.from(value).slice(0,240).join('');
+ return Array.from(value).slice(0,limit).join('');
 }
+
+/** Last guard on an already-written spoken answer, never a substitute for summarization. */
+export function technicalSpeech(text:string){return (text.match(/\b[a-z0-9]+(?:[-_][a-z0-9]+){2,}\b/gi)??[]).some(name=>name.length>=12)||/(?:[A-Za-z]:[\\/]|\\\\|(?:^|\s)~?\/)[^\s]+|\b[0-9a-f]{8}-[0-9a-f-]{27,}\b|\b[a-z0-9_.-]{24,}\b|\b[a-z0-9_.-]+\.(?:tsx?|jsx?|json|ya?ml|md|py|ps1|sh|txt|log)\b/iu.test(text);}

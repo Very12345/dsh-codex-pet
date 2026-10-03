@@ -11,6 +11,7 @@ import type {CompanionSnapshot} from './companion-api.ts';
 import {electronPath} from './electron-path.ts';
 import {createServer,type Server,type Socket} from 'node:net';
 import type {SpeechOutput} from './local-speech.ts';
+import {VoiceDialogue,dialogueInput,type VoiceModelServices} from './voice-dialogue.ts';
 
 type Lease = {owner:string; token:string; stream?:ServerResponse; reconnect?:ReturnType<typeof setTimeout>};
 type Reply = {resolve:(value?:unknown)=>void; reject:(error:Error)=>void; timer:ReturnType<typeof setTimeout>};
@@ -31,9 +32,10 @@ export class DesktopRuntime {
   private heartbeat?:ReturnType<typeof setInterval>;
   private speechJobs=new Set<AbortController>();
   private synthesis?:AbortController;
+  private conversation?:{id:string;sessionId:string|null;dialogue:VoiceDialogue};
   private socketServer?:Server;
   private socket?:Socket;
-  constructor(private library:PetLibrary, private options:{platform?:string; spawn?:typeof spawn; startupTimeoutMs?:number; reconnectMs?:number;speech?:()=>SpeechHost|undefined;output?:SpeechOutput;fixture?:boolean}={}) {
+  constructor(private library:PetLibrary, private options:{platform?:string; spawn?:typeof spawn; startupTimeoutMs?:number; reconnectMs?:number;speech?:()=>SpeechHost|undefined;output?:SpeechOutput;voiceModels?:()=>VoiceModelServices;fixture?:boolean}={}) {
     this.supported=(options.platform ?? process.platform)==='win32';
   }
   get running(){return !!this.child && !this.error;}
@@ -219,6 +221,7 @@ export class DesktopRuntime {
     this.lease=undefined;
   }
   stop(){
+    this.conversation?.dialogue.dispose();this.conversation=undefined;
     for(const job of this.speechJobs)job.abort(new Error('Desktop speech was stopped'));
     this.event('stopped',this.error?{error:this.error}:{});this.clearLease();
     const child=this.child;this.cancelStart?.(new Error('Desktop pet stopped during startup'));this.cancelStart=undefined;
@@ -258,6 +261,19 @@ export class DesktopRuntime {
     finally{this.speechJobs.delete(controller);}
   }
   voices(){if(!this.options.output)throw new Error('系统语音输出不可用');return this.options.output.voices();}
+  async dialogueBegin(token:unknown,value:Record<string,unknown>,caller:AbortSignal){
+    this.authorized(token);if(typeof value.callId!=='string'||!/^[\w-]{8,100}$/.test(value.callId))throw new Error('语音通话标识无效');
+    const input=dialogueInput({...value,mode:'progress'});if(!this.options.voiceModels)throw new Error('宿主未提供语音对话模型接口');
+    this.conversation?.dialogue.dispose();const conversation={id:value.callId,sessionId:input.task.sessionId,dialogue:new VoiceDialogue(this.options.voiceModels)};this.conversation=conversation;
+    try{await conversation.dialogue.ready(input.task,caller);}catch(error){conversation.dialogue.dispose();if(this.conversation===conversation)this.conversation=undefined;throw error;}
+  }
+  async dialogueRespond(token:unknown,value:Record<string,unknown>,caller:AbortSignal){
+    this.authorized(token);const current=this.conversation;if(!current||value.callId!==current.id)throw new Error('语音通话已结束');const input=dialogueInput(value);
+    if(current.sessionId!==null&&input.task.sessionId!==current.sessionId)throw new Error('语音目标会话不一致');
+    if(current.sessionId===null&&input.task.sessionId!==null)current.sessionId=input.task.sessionId;
+    return current.dialogue.respond(input,caller);
+  }
+  dialogueEnd(token:unknown,callId:unknown){this.authorized(token);const current=this.conversation;if(current&&current.id===callId){current.dialogue.dispose();this.conversation=undefined;}}
   async synthesize(token:unknown,value:Record<string,unknown>,caller:AbortSignal){
     this.authorized(token);if(!this.options.output)throw new Error('系统语音输出不可用');if(typeof value.text!=='string')throw new Error('语音输出文字无效');
     caller.throwIfAborted();this.synthesis?.abort(new Error('语音回复已被更新'));
@@ -268,7 +284,7 @@ export class DesktopRuntime {
   }
   callState(token:unknown,value:unknown){
     this.authorized(token);if(!value||typeof value!=='object')throw new Error('通话状态无效');const source=value as Record<string,unknown>;
-    if(!['off','starting','listening','recognizing','working','preparing-audio','speaking','muted','error'].includes(String(source.phase)))throw new Error('通话状态无效');
+    if(!['off','starting','listening','recognizing','thinking','working','preparing-audio','speaking','muted','error'].includes(String(source.phase)))throw new Error('通话状态无效');
     const short=(key:string,limit:number)=>typeof source[key]==='string'?source[key].slice(0,limit):'';
     this.send({type:'call-state',value:{phase:source.phase,active:source.active===true,muted:source.muted===true,title:short('title',160),sessionId:short('sessionId',100)||null,heard:short('heard',500),said:short('said',500),error:short('error',1000),level:typeof source.level==='number'&&Number.isFinite(source.level)?Math.max(0,Math.min(1,source.level)):0}});
   }

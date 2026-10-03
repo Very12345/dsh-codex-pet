@@ -2,13 +2,15 @@
 
 [简体中文](README.zh-CN.md)
 
-An independent fork of [MichengAI/dsh-codex-pet](https://github.com/MichengAI/dsh-codex-pet), based on upstream 0.1.12. Fork version **0.3.2** adds a native Windows floating companion outside the DSH window.
+An independent fork of [MichengAI/dsh-codex-pet](https://github.com/MichengAI/dsh-codex-pet), based on upstream 0.1.12. Fork version **0.4.0** adds a native Windows floating companion outside the DSH window.
 
 ## Features
 
 - Controls collapse to a small capsule until hovered. Idle pets show new conversation and voice only; tasks add a collapse/expand button and count.
 - Notifications appear above a bottom-positioned pet and below a top-positioned pet, preserving the mascot anchor as UI expands. Cards show visible assistant previews or tool names, a completion mark, and hover actions. Reply opens an inline follow-up sent to the original session in queue mode, preserving host permissions and round identity.
 - Sending a draft or pressing Ctrl+Enter creates and prompts a native DSH session. The voice button starts a continuous local call with automatic utterance submission and spoken reply summaries; right-click the pet for the original manual dictation flow.
+- A separate spoken conversation layer uses the selected DSH text model. Chat, follow-ups and clarifications are answered directly; work requests are delegated to the original task. Results become one to three conversational sentences, with directory listings, files and logs kept in the written task rather than reading a truncated preview. Recognition remains responsive while the model thinks.
+- Recognition and synthesis remain local, with no new speech API key. Dialogue adds normal text-model calls under the configured model/account usage terms. The spoken layer has no tools or approval permissions; short conversation history is cleared on hangup.
 - Prepared local recognizers in standby/waking accept recording, matching DSH voice input; the host wakes the worker during transcription without requiring re-installation.
 
 - Transparent, always-on-top pet, visible while DSH is minimized or another app is active. Startup and state updates do not steal focus.

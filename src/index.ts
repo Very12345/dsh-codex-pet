@@ -13,6 +13,7 @@ import { BASE } from "./model.ts";
 import { PetLibrary } from "./library.ts";
 import {DesktopRuntime,type SpeechHost} from './desktop-runtime.ts';
 import {WindowsSpeech,type SpeechOutput} from './local-speech.ts';
+import type {VoiceModelServices} from './voice-dialogue.ts';
 export const name = "very12345-codex-pet";
 export const inject = ["webServer"];
 const packageRoot = fileURLToPath(new URL("../", import.meta.url));
@@ -55,7 +56,7 @@ async function body(req: IncomingMessage, limit=16384): Promise<Record<string, u
     return value as Record<string, unknown>;
 }
 export async function createHost(
-    options: { root?: string; dataRoot?: string; skillRoot?: string;speech?:()=>SpeechHost|undefined;output?:SpeechOutput;fixture?:boolean } = {},
+    options: { root?: string; dataRoot?: string; skillRoot?: string;speech?:()=>SpeechHost|undefined;output?:SpeechOutput;voiceModels?:()=>VoiceModelServices;fixture?:boolean } = {},
 ) {
     const root = options.root ?? packageRoot;
     const library = new PetLibrary(
@@ -65,7 +66,7 @@ export async function createHost(
     );
     await library.init();
     const output=options.output??new WindowsSpeech();
-    const desktop = new DesktopRuntime(library,{speech:options.speech,output,fixture:options.fixture});
+    const desktop = new DesktopRuntime(library,{speech:options.speech,output,voiceModels:options.voiceModels,fixture:options.fixture});
     let updateHandler:
         | ((req: HostRequest, res: HostResponse) => Promise<void>)
         | undefined;
@@ -127,6 +128,8 @@ export async function createHost(
                 else if(path===`${BASE}/api/desktop/voice-ready`)desktop.voiceReady(value.token,value.localOnly===true);
                 else if(path===`${BASE}/api/desktop/composer`)desktop.composer(value.token,value.value);
                 else if(path===`${BASE}/api/desktop/call-state`)desktop.callState(value.token,value.value);
+                else if(path===`${BASE}/api/desktop/dialogue-end`)desktop.dialogueEnd(value.token,value.callId);
+                else if(path===`${BASE}/api/desktop/dialogue-begin`||path===`${BASE}/api/desktop/dialogue`){const controller=new AbortController();res.once('close',()=>{if(!res.writableEnded)controller.abort();});const result=path.endsWith('dialogue-begin')?await desktop.dialogueBegin(value.token,value,controller.signal):await desktop.dialogueRespond(value.token,value,controller.signal);json(res,200,result??{});return;}
                 else if(path===`${BASE}/api/desktop/tts`){const controller=new AbortController();res.once('close',()=>{if(!res.writableEnded)controller.abort();});json(res,200,await desktop.synthesize(value.token,value,controller.signal));return;}
                 else if(path===`${BASE}/api/desktop/transcribe`){
                     const controller=new AbortController();res.once('close',()=>{if(!res.writableEnded)controller.abort();});
@@ -268,7 +271,8 @@ export function apply(ctx: HostContext): void {
         let disposed = false,
             remove: (() => void) | undefined,
             host: Awaited<ReturnType<typeof createHost>> | undefined;
-        void createHost({speech:()=>((ctx as unknown as {get(name:string):unknown}).get('speechToText') as SpeechHost|undefined)})
+        const get=(name:string)=>{try{return (ctx as unknown as {get(name:string):unknown}).get(name);}catch{return undefined;}};
+        void createHost({speech:()=>get('speechToText') as SpeechHost|undefined,voiceModels:()=>({llm:get('llm') as VoiceModelServices['llm'],defaults:get('agentDefaultModel') as VoiceModelServices['defaults'],sessions:get('sessionController') as VoiceModelServices['sessions']})})
             .then((value) => {
                 host = value;
                 if (disposed) {

@@ -14,12 +14,18 @@ export function connectDesktop(api:CompanionApi, refresh:()=>Promise<void>, fail
   let pending:CompanionSnapshot|null=null,sending=false;
   const voice=new VoiceCapture();let processing=false,startingVoice=false,recordingTimer:ReturnType<typeof setTimeout>|undefined,speechAbort:AbortController|undefined;
   const request=async(path:string,data:unknown,signal?:AbortSignal)=>{
-    const response=await fetcher(`${BASE}/api/desktop/${path}`,{method:'POST',headers:{'content-type':'application/json','x-dsh-pet':'1'},body:JSON.stringify(data),signal:AbortSignal.any([AbortSignal.timeout(path==='transcribe'||path==='tts'?120000:20000),...(signal?[signal]:[])])});
+    const response=await fetcher(`${BASE}/api/desktop/${path}`,{method:'POST',headers:{'content-type':'application/json','x-dsh-pet':'1'},body:JSON.stringify(data),signal:AbortSignal.any([AbortSignal.timeout(path==='transcribe'||path==='tts'?120000:path.startsWith('dialogue')?60000:20000),...(signal?[signal]:[])])});
     const result=await response.json();if(!response.ok)throw new Error(result.error ?? 'Desktop pet connection failed');return result;
   };
   let callPending:CallState|undefined,callSending=false;
   const publishCall=(value:CallState)=>{callPending=value;if(callSending)return;void (async()=>{callSending=true;try{while(callPending&&active&&token&&!ended){const state=callPending;callPending=undefined;await request('call-state',{token,value:state}).catch(()=>{});}}finally{callSending=false;}})();};
+  let callId:string|undefined;
   const call=api.voice?new LocalVoiceCall({microphone:new LiveMicrophone(),sessions:api.voice,
+    dialogue:{
+      start:async(task,signal)=>{callId=crypto.randomUUID();await request('dialogue-begin',{token,callId,task},signal);},
+      respond:async(input,signal)=>await request('dialogue',{token,callId,...input},signal),
+      end:()=>{const endedId=callId;callId=undefined;if(endedId&&active&&!ended)void request('dialogue-end',{token,callId:endedId}).catch(()=>{});}
+    },
     ready:async signal=>{await request('voice-ready',{token,localOnly:true},signal);const response=await fetcher(`${BASE}/api/desktop/tts-voices`,{signal});const value=await response.json();if(!response.ok||!value.voices?.length)throw new Error(value.error||'没有可用的 Windows 系统声音');},
     recognize:async(audio,signal)=>{const result=await request('transcribe',{token,audioBase64:waveBase64(audio),localOnly:true},signal);return result.text||'';},
     synthesize:async(text,signal)=>{const result=await request('tts',{token,text,language:String(api.getSnapshot()?.language||'zh').startsWith('en')?'en':'zh'},signal);return Uint8Array.from(atob(result.audioBase64),character=>character.charCodeAt(0));},
