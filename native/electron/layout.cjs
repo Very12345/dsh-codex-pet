@@ -2,7 +2,7 @@ const VIEWPORT_WIDTH=768,PANEL_WIDTH=330;
 function clamp(value,min,max){return Math.max(min,Math.min(max,value));}
 function constrainPet(anchor,area){
  const size=anchor.size,height=size*208/192;
- return {...anchor,x:clamp(anchor.x,area.x,area.x+Math.max(0,area.width-size)),y:clamp(anchor.y,area.y,area.y+Math.max(0,area.height-height-40))};
+ return {...anchor,x:clamp(anchor.x,area.x,area.x+Math.max(0,area.width-size)),y:clamp(anchor.y,area.y,area.y+Math.max(0,area.height-height-48))};
 }
 function petPlacement(config,area){
  const size=Math.max(64,Math.min(224,config?.size||120)),position=config?.desktopPosition;
@@ -20,4 +20,13 @@ function panelOffset(anchor,area){
  const center=anchor.x+anchor.size/2,desired=center-PANEL_WIDTH/2;
  return Math.round(clamp(desired,area.x+12,area.x+area.width-PANEL_WIDTH-12)-desired);
 }
-module.exports={petPlacement,overlayBounds,constrainPet,panelOffset,VIEWPORT_WIDTH,PANEL_WIDTH};
+function toolbarOffset(anchor,area,width){
+ // Position the full action row inside its readable composer frame. The
+ // compact grip shrinks around that same center, rather than the pet center.
+ const frameWidth=Math.min(PANEL_WIDTH,Math.max(0,area.width-32));
+ const center=anchor.x+anchor.size/2;
+ const frameLeft=clamp(center-frameWidth/2,area.x+16,area.x+area.width-16-frameWidth);
+ const rowLeft=clamp(center-width/2,frameLeft,frameLeft+frameWidth-width);
+ return rowLeft+width/2-center;
+}
+module.exports={petPlacement,overlayBounds,constrainPet,panelOffset,toolbarOffset,VIEWPORT_WIDTH,PANEL_WIDTH};

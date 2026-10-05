@@ -2,11 +2,11 @@
 
 [简体中文](README.zh-CN.md)
 
-An independent fork of [MichengAI/dsh-codex-pet](https://github.com/MichengAI/dsh-codex-pet), based on upstream 0.1.12. Fork version **0.5.3** adds a native Windows floating companion outside the DSH window.
+An independent fork of [MichengAI/dsh-codex-pet](https://github.com/MichengAI/dsh-codex-pet), based on upstream 0.1.12. Fork version **0.5.4** adds a native Windows floating companion outside the DSH window.
 
 ## Features
 
-- Idle controls collapse to a white capsule until hovered. Visible task, request and call cards keep the toolbar expanded; automatic folding resumes after the cards are explicitly hidden or dismissed. Idle pets show new conversation and voice only; tasks add a collapse/expand button and count.
+- Idle controls collapse to a 23.5×6px white capsule until hovered. Both states retain the same action-row center and shift inward near screen edges. Visible task, request and call cards keep the toolbar expanded; automatic folding resumes after the cards are explicitly hidden or dismissed. Idle pets show new conversation and voice only; tasks add a collapse/expand button and count.
 - Task titles and assistant previews project Markdown into plain text, keeping code identifiers and visible link labels while preserving the original conversation.
 - Notifications appear above a bottom-positioned pet and below a top-positioned pet, preserving the mascot anchor as UI expands. Cards place live thinking, visible reply text or friendly tool activity below the title. Completed tool calls return to thinking; a subtle progress shimmer respects reduced motion. Completion marks and hover actions remain, with inline follow-ups sent to the original session in queue mode.
 - New companion tasks receive separate scratch directories under `.dsh/codex-pet/workspaces/task-*`, with files retained for follow-up. Existing task replies and pinned calls keep their workspace. Clicking a task card navigates through the workspace UI, then brings the owning Windows DSH window forward and restores it when minimized; a refused activation is reported.

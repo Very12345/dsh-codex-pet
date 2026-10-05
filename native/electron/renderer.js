@@ -9037,7 +9037,7 @@ Please report this to https://github.com/markedjs/marked.`, e) {
     const [state, setState] = (0, import_react2.useState)(latest), [collapsed, setCollapsed] = (0, import_react2.useState)(false), [compose, setCompose] = (0, import_react2.useState)(false), [draft, setDraft] = (0, import_react2.useState)(""), [files, setFiles] = (0, import_react2.useState)([]), [error, setError] = (0, import_react2.useState)(""), [voice, setVoice] = (0, import_react2.useState)("idle"), [busy, setBusy] = (0, import_react2.useState)(false), [menu, setMenu] = (0, import_react2.useState)(false), [request, setRequest] = (0, import_react2.useState)(null), [transient, setTransient] = (0, import_react2.useState)(null), [hover, setHover] = (0, import_react2.useState)(false), [cell, setCell] = (0, import_react2.useState)({ row: 0, column: 0, duration: 1 });
     const shell = (0, import_react2.useRef)(null), pet = (0, import_react2.useRef)(null), input = (0, import_react2.useRef)(null), clock = (0, import_react2.useRef)(new MotionClock()), dragging = (0, import_react2.useRef)(false), pending = (0, import_react2.useRef)(""), pixels = (0, import_react2.useRef)(null), replies = (0, import_react2.useRef)(/* @__PURE__ */ new Map());
     const [call, setCall] = (0, import_react2.useState)({ phase: "off", active: false, muted: false, title: "", sessionId: null, heard: "", said: "", error: "", level: 0 });
-    const [controls, setControls] = (0, import_react2.useState)(false), [above, setAbove] = (0, import_react2.useState)(false), [panelOffsetX, setPanelOffsetX] = (0, import_react2.useState)(0);
+    const [controls, setControls] = (0, import_react2.useState)(false), [above, setAbove] = (0, import_react2.useState)(false), [panelOffsetX, setPanelOffsetX] = (0, import_react2.useState)(0), [toolbarOffsets, setToolbarOffsets] = (0, import_react2.useState)({ idle: 0, tasks: 0 });
     const hoverTimer = (0, import_react2.useRef)(), replyDrafts = (0, import_react2.useRef)(/* @__PURE__ */ new Map());
     const captureId = (0, import_react2.useRef)(null), dragToken = (0, import_react2.useRef)("");
     const endDrag = () => {
@@ -9090,6 +9090,10 @@ Please report this to https://github.com/markedjs/marked.`, e) {
         else if (value.type === "layout") {
           setAbove(!!value.above);
           setPanelOffsetX(value.panelOffsetX || 0);
+          setToolbarOffsets((old) => {
+            const next = value.toolbarOffsets || { idle: 0, tasks: 0 };
+            return old.idle === next.idle && old.tasks === next.tasks ? old : next;
+          });
         } else if (value.type === "hover-region") controlHover(!!value.hover);
         else if (value.type === "window-blur") {
           endDragRef.current();
@@ -9196,10 +9200,12 @@ Please report this to https://github.com/markedjs/marked.`, e) {
           const result = { x: rect.x, y: rect.y, width: rect.width, height: rect.height, hover: element.hasAttribute("data-hover") };
           if (result.hover && pet.current) {
             const mascot = pet.current.getBoundingClientRect();
-            result.x = mascot.x;
+            const toolbar2 = shell.current.querySelector(".toolbar")?.getBoundingClientRect();
+            const center = toolbar2 ? toolbar2.x + toolbar2.width / 2 : mascot.x + mascot.width / 2, rowWidth = items.length ? 120 : 80;
+            result.x = Math.min(mascot.x, center - rowWidth / 2);
             result.y = mascot.y;
-            result.width = mascot.width;
-            result.height = mascot.height + 50;
+            result.width = Math.max(mascot.right, center + rowWidth / 2) - result.x;
+            result.height = Math.max(mascot.bottom + 50, toolbar2 ? toolbar2.y + 40 : 0) - result.y;
           }
           if (element === pet.current && pixels.current) {
             const bytes = new Uint8Array(192 * 208 / 8), data = pixels.current;
@@ -9216,9 +9222,11 @@ Please report this to https://github.com/markedjs/marked.`, e) {
       };
       const observer = new ResizeObserver(report);
       observer.observe(shell.current);
+      const toolbar = shell.current.querySelector(".toolbar");
+      if (toolbar) observer.observe(toolbar);
       report();
       return () => observer.disconnect();
-    }, [state, cell, compose, collapsed, menu, request, controls, above, panelOffsetX, call]);
+    }, [state, cell, compose, collapsed, menu, request, controls, above, panelOffsetX, toolbarOffsets, call]);
     (0, import_react2.useEffect)(() => {
       if (!state?.id) return;
       const ready = () => requestAnimationFrame(() => bridge.emit({ type: "shown", id: state.id }));
@@ -9240,6 +9248,7 @@ Please report this to https://github.com/markedjs/marked.`, e) {
     (0, import_react2.useEffect)(() => {
       if (request && !liveRequest) setRequest(null);
     }, [request, liveRequest]);
+    const toolbarOffsetX = items.length ? toolbarOffsets.tasks : toolbarOffsets.idle;
     const toolbarExpanded = controls || !collapsed && items.length > 0 || !!liveRequest || call.active || !!call.error;
     (0, import_react2.useEffect)(() => {
       const end = () => endDragRef.current(), escape = (event) => {
@@ -9266,8 +9275,8 @@ Please report this to https://github.com/markedjs/marked.`, e) {
       return () => document.removeEventListener("pointerdown", outside, true);
     }, [compose]);
     (0, import_react2.useEffect)(() => {
-      window.__petInspect = () => ({ pose, cell, above, controls, toolbarExpanded, panelOffsetX, compactGripColor: document.querySelector(".compact-grip") ? getComputedStyle(document.querySelector(".compact-grip")).backgroundColor : null, toolbarAppearance: document.querySelector(".toolbar") ? { width: document.querySelector(".toolbar").getBoundingClientRect().width, height: document.querySelector(".toolbar").getBoundingClientRect().height } : null, replyStyle: document.querySelector(".notice-actions .round") ? { color: getComputedStyle(document.querySelector(".notice-actions .round")).color, background: getComputedStyle(document.querySelector(".notice-actions .round")).backgroundColor, iconWidth: document.querySelector(".notice-actions .round svg")?.getBoundingClientRect().width } : null, callPhase: call.phase, callVisible: !!document.querySelector(".call-panel"), callTitle: call.title, callSaid: call.said, rendererDragging: dragging.current, toolbarButtonCount: document.querySelectorAll(".toolbar button").length, collapsed, composerVisible: compose && !collapsed, composerText: draft, composerError: document.querySelector(".composer-error")?.textContent || "", noticesVisible: !collapsed && items.length > 0, petBounds: pet.current?.getBoundingClientRect().toJSON(), toolbarBounds: document.querySelector(".toolbar")?.getBoundingClientRect().toJSON(), noticeBounds: document.querySelector(".notice")?.getBoundingClientRect().toJSON(), noticePreview: document.querySelector(".notice-copy")?.textContent, noticeTitleBounds: document.querySelector(".notice-copy strong")?.getBoundingClientRect().toJSON(), noticeSubtitleBounds: document.querySelector(".notice-subtitle")?.getBoundingClientRect().toJSON(), noticeSubtitle: document.querySelector(".notice-subtitle")?.textContent, noticeProgress: document.querySelector(".notice-subtitle")?.classList.contains("is-active"), requestVisible: !!document.querySelector(".request"), replyVisible: !!document.querySelector(".follow-up") });
-    }, [pose, cell, above, controls, toolbarExpanded, panelOffsetX, collapsed, compose, draft, items.length, call]);
+      window.__petInspect = () => ({ pose, cell, above, controls, toolbarExpanded, panelOffsetX, toolbarOffsetX, compactGripColor: document.querySelector(".compact-grip") ? getComputedStyle(document.querySelector(".compact-grip")).backgroundColor : null, toolbarAppearance: document.querySelector(".toolbar") ? { width: document.querySelector(".toolbar").getBoundingClientRect().width, height: document.querySelector(".toolbar").getBoundingClientRect().height } : null, replyStyle: document.querySelector(".notice-actions .round") ? { color: getComputedStyle(document.querySelector(".notice-actions .round")).color, background: getComputedStyle(document.querySelector(".notice-actions .round")).backgroundColor, iconWidth: document.querySelector(".notice-actions .round svg")?.getBoundingClientRect().width } : null, callPhase: call.phase, callVisible: !!document.querySelector(".call-panel"), callTitle: call.title, callSaid: call.said, rendererDragging: dragging.current, toolbarButtonCount: document.querySelectorAll(".toolbar button").length, collapsed, composerVisible: compose && !collapsed, composerText: draft, composerError: document.querySelector(".composer-error")?.textContent || "", noticesVisible: !collapsed && items.length > 0, petBounds: pet.current?.getBoundingClientRect().toJSON(), toolbarBounds: document.querySelector(".toolbar")?.getBoundingClientRect().toJSON(), noticeBounds: document.querySelector(".notice")?.getBoundingClientRect().toJSON(), noticePreview: document.querySelector(".notice-copy")?.textContent, noticeTitleBounds: document.querySelector(".notice-copy strong")?.getBoundingClientRect().toJSON(), noticeSubtitleBounds: document.querySelector(".notice-subtitle")?.getBoundingClientRect().toJSON(), noticeSubtitle: document.querySelector(".notice-subtitle")?.textContent, noticeProgress: document.querySelector(".notice-subtitle")?.classList.contains("is-active"), requestVisible: !!document.querySelector(".request"), replyVisible: !!document.querySelector(".follow-up") });
+    }, [pose, cell, above, controls, toolbarExpanded, panelOffsetX, toolbarOffsetX, collapsed, compose, draft, items.length, call]);
     const openComposer = () => {
       setCompose(true);
       setCollapsed(false);
@@ -9292,7 +9301,7 @@ Please report this to https://github.com/markedjs/marked.`, e) {
       pending.current = action({ type: "send-message", text: draft, files });
     };
     if (!state) return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "shell", ref: shell });
-    return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "shell " + (above ? "above " : "") + (state.theme === "dark" ? "dark" : ""), ref: shell, style: { "--panel-offset-x": panelOffsetX + "px" }, children: [
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "shell " + (above ? "above " : "") + (state.theme === "dark" ? "dark" : ""), ref: shell, style: { "--panel-offset-x": panelOffsetX + "px", "--toolbar-offset-x": toolbarOffsetX + "px" }, children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "mascot-group", "data-hover": true, children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { ref: pet, "data-hit": true, className: "pet", "aria-label": t("\u60AC\u6D6E\u5BA0\u7269", "Floating pet"), style: { width: size, height: size * 208 / 192, backgroundImage: "url(data:image/png;base64," + state.image + ")", backgroundSize: `${size * 8}px ${size * 208 / 192 * (state.version === 2 ? 11 : 9)}px`, backgroundPosition: `${-cell.column * size}px ${-cell.row * size * 208 / 192}px` }, onPointerEnter: () => setHover(true), onPointerLeave: () => setHover(false), onPointerDown: (event) => {
           if (event.button !== 0 || dragging.current) return;
@@ -9312,7 +9321,7 @@ Please report this to https://github.com/markedjs/marked.`, e) {
           event.preventDefault();
           setMenu(!menu);
         } }),
-        !compose || collapsed ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "toolbar-slot", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "toolbar " + (toolbarExpanded ? "expanded" : "compact"), style: { width: toolbarExpanded ? items.length ? 120 : 80 : 17 }, "data-hit": true, children: toolbarExpanded ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+        !compose || collapsed ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "toolbar-slot", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "toolbar " + (toolbarExpanded ? "expanded" : "compact"), style: { width: toolbarExpanded ? items.length ? 120 : 80 : 23.5 }, "data-hit": true, children: toolbarExpanded ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { title: t("\u65B0\u5BF9\u8BDD", "New conversation"), onClick: openComposer, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Icon, { name: "new" }) }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { title: call.active ? t("\u7ED3\u675F\u901A\u8BDD", "End call") : t("\u8BED\u97F3\u901A\u8BDD", "Voice call"), className: call.active ? "call-active" : "", onClick: () => action({ type: "call-toggle" }), children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Icon, { name: "voice" }) }),
           items.length ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("button", { title: t("\u6298\u53E0/\u5C55\u5F00\u5BF9\u8BDD", "Collapse/expand conversations"), onClick: fold, children: [

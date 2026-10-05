@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.4] - 2026-10-06
+
+- Correct the compact grip to 23.5×6px: 17px was one component, not the merged capsule width.
+- Position the full 80/120px action row inside a frame with a 16px screen inset, retaining its center when collapsed and placing both states 4px below the mascot frame.
+- Update native hover/hit geometry with the shifted controls and verify both screen edges at three pet sizes, including actual clicks on new-chat, voice and fold controls.
+
+- Reserve 48px beneath the pet frame for the current controls, preventing clipping at the bottom corners.
+
 ## [0.5.3] - 2026-10-05
 
 - Convert task titles and streamed/completed assistant previews from Markdown to plain text in both page and native cards.

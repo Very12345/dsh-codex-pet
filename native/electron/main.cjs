@@ -1,7 +1,7 @@
 const {app,BrowserWindow,ipcMain,screen,dialog}=require('electron');
 const {join}=require('node:path');const readline=require('node:readline');const {createConnection}=require('node:net');
 const {execFile}=require('node:child_process');
-const {petPlacement,overlayBounds,constrainPet,panelOffset,VIEWPORT_WIDTH}=require('./layout.cjs');
+const {petPlacement,overlayBounds,constrainPet,panelOffset,toolbarOffset,VIEWPORT_WIDTH}=require('./layout.cjs');
 const parent=Number(process.argv.find(value=>value.startsWith('--parent-pid='))?.split('=')[1]);
 app.setAppUserModelId('org.very12345.dsh-floating-pet');
 let win,snapshot,zones=[],drag,closed=false,currentImage='',fixture=process.env.DSH_PET_NATIVE_TEST==='1',choosingFiles=false;
@@ -18,7 +18,7 @@ process.stdout.on('error',quit);process.stderr.on('error',quit);
 function owner(event){return win && event.sender===win.webContents && event.senderFrame===win.webContents.mainFrame;}
 function nativeArea(display){return {...display.workArea,height:display.bounds.y+display.bounds.height-display.workArea.y};}
 function anchorDisplay(){return anchor?screen.getDisplayNearestPoint({x:Math.round(anchor.x+anchor.size/2),y:Math.round(anchor.y+anchor.size*208/192/2)}):screen.getPrimaryDisplay();}
-function publishLayout(){if(win&&anchor&&!closed)win.webContents.send('pet:message',{type:'layout',above:layoutAbove,panelOffsetX:panelOffset(anchor,nativeArea(anchorDisplay()))});}
+function publishLayout(){if(win&&anchor&&!closed){const area=nativeArea(anchorDisplay());win.webContents.send('pet:message',{type:'layout',above:layoutAbove,panelOffsetX:panelOffset(anchor,area),toolbarOffsets:{idle:toolbarOffset(anchor,area,80),tasks:toolbarOffset(anchor,area,120)}});}}
 function placement(height){
  const displays=screen.getAllDisplays(),position=snapshot?.config?.desktopPosition;
  const display=displays.find(display=>'display:'+display.id===position?.screen)||screen.getPrimaryDisplay();const area=nativeArea(display);
@@ -81,13 +81,19 @@ app.whenReady().then(()=>{
    if(first||previousSize!==value.config?.size||JSON.stringify(previous)!==JSON.stringify(value.config?.desktopPosition))win.setBounds(placement(win.getBounds().height),false);
    win.webContents.send('pet:message',value);publishLayout();if(value.config?.visible!==false){if(!win.isVisible()){win.showInactive();win.setAlwaysOnTop(true,'normal');}}else win.hide();
   }else if(value.type==='inspect'){
-   try{const state=await win.webContents.executeJavaScript('window.__petInspect()');const screenshot=await win.webContents.capturePage();emit({type:'inspection',id:value.id,pid:process.pid,hostFocusRequests,nativeDragging:!!drag,visible:win.isVisible(),focused:win.isFocused(),topmost:win.isAlwaysOnTop(),bounds:win.getBounds(),workArea:nativeArea(anchorDisplay()),scale:anchorDisplay().scaleFactor,image:screenshot.toPNG().toString('base64'),...state});}catch(error){emit({type:'native-error',error:error.message});}
+   try{const state=await win.webContents.executeJavaScript('window.__petInspect()');const screenshot=await win.webContents.capturePage();emit({type:'inspection',id:value.id,pid:process.pid,hostFocusRequests,hitZones:fixture?zones:undefined,nativeDragging:!!drag,visible:win.isVisible(),focused:win.isFocused(),topmost:win.isAlwaysOnTop(),bounds:win.getBounds(),workArea:nativeArea(anchorDisplay()),scale:anchorDisplay().scaleFactor,image:screenshot.toPNG().toString('base64'),...state});}catch(error){emit({type:'native-error',error:error.message});}
   }else if(value.type==='fixture-ui'&&fixture){
    if(value.action==='blur'){const focusSink=new BrowserWindow({width:180,height:80,show:true,frame:false,skipTaskbar:true,title:'Pet test focus fixture',webPreferences:{sandbox:true}});focusSink.focus();setTimeout(()=>focusSink.destroy(),250);}
    else if(value.action==='drag-start'){win.focus();win.setIgnoreMouseEvents(false);const state=await win.webContents.executeJavaScript('window.__petInspect()');const rect=state.petBounds;win.webContents.sendInputEvent({type:'mouseDown',button:'left',x:Math.round(rect.x+rect.width/2),y:Math.round(rect.y+rect.height/2),clickCount:1});}
    else if(value.action==='drag-native-up')win.webContents.emit('before-mouse-event',{}, {type:'mouseUp',button:'left'});
    else if(value.action==='drag-stale'){const old='00000000-0000-0000-0000-000000000000';endDrag(old);win.webContents.send('pet:message',{type:'drag-ended',id:old});}
    else if(value.action==='drag-left'||value.action==='drag-right')win.webContents.send('pet:message',{type:'drag-motion',dx:value.action==='drag-left'?-8:8});
+   else if(value.action==='toolbar-click'){
+    const index=Number(value.index);if(!Number.isInteger(index)||index<0||index>2)return;
+    const rect=await win.webContents.executeJavaScript(`document.querySelectorAll('.toolbar button')[${index}]?.getBoundingClientRect().toJSON()`);if(!rect)return;
+    const x=Math.round(rect.x+rect.width/2),y=Math.round(rect.y+rect.height/2);
+    win.webContents.sendInputEvent({type:'mouseMove',x,y});win.webContents.sendInputEvent({type:'mouseDown',button:'left',x,y,clickCount:1});win.webContents.sendInputEvent({type:'mouseUp',button:'left',x,y,clickCount:1});
+   }
    else if(value.action==='reply-hover'){const rect=await win.webContents.executeJavaScript('document.querySelector(".notice-actions .round").getBoundingClientRect().toJSON()');win.webContents.sendInputEvent({type:'mouseMove',x:Math.round(rect.x+rect.width/2),y:Math.round(rect.y+rect.height/2)});}
    else if(value.action==='drag-reset'){win.webContents.sendInputEvent({type:'mouseUp',button:'left',x:0,y:0,clickCount:1});win.webContents.sendInputEvent({type:'mouseMove',x:0,y:0});}
    else if(value.action==='drag-escape')win.webContents.sendInputEvent({type:'keyDown',keyCode:'Escape'});

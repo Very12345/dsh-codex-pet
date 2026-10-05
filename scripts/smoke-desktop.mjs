@@ -4,7 +4,7 @@ if(process.platform!=='win32'){console.log('Desktop smoke requires Windows');pro
 const directory=await mkdtemp(join(tmpdir(),'pet-electron-'));const host=await createHost({dataRoot:directory,fixture:true});
 try{
  const {token}=await host.desktop.begin('electron-check');
- const stream=new PassThrough();stream.writeHead=()=>{};stream.on('data',chunk=>{const match=String(chunk).match(/^event: command\ndata: (.+)\n\n$/);if(match){const message=JSON.parse(match[1]);setImmediate(()=>{try{host.desktop.acknowledge(token,message.id,undefined);}catch{}});}});host.desktop.attach(token,stream);
+ const commands=[];const stream=new PassThrough();stream.writeHead=()=>{};stream.on('data',chunk=>{const match=String(chunk).match(/^event: command\ndata: (.+)\n\n$/);if(match){const message=JSON.parse(match[1]);commands.push(message.command);setImmediate(()=>{try{host.desktop.acknowledge(token,message.id,undefined);}catch{}});}});host.desktop.attach(token,stream);
  const pet=host.library.pets.find(pet=>pet.id===host.library.config.selected);
  const image=(await sharp(await host.library.asset(pet.id)).png().toBuffer()).toString('base64');
  await host.desktop.publish(token,{image,spriteKey:pet.url,language:'zh-CN',theme:'light',notifications:{activity:{pose:'running'},items:[{id:'fixture',token:'1',title:'阅读科研项目内容',pose:'running',text:'正在思考'}],hidden:0}});
@@ -61,7 +61,7 @@ try{
  host.desktop['send']({type:'fixture-ui',action:'reply-hover'});await new Promise(resolve=>setTimeout(resolve,150));const hoverReply=await host.desktop.inspect();assert.equal(hoverReply.replyStyle.color,'rgb(255, 255, 255)');assert.equal(hoverReply.replyStyle.background,'rgb(175, 175, 175)');await writeFile('.preview/electron-reply-hover.png',Buffer.from(hoverReply.image,'base64'));
  await host.desktop.publish(token,{spriteKey:pet.url,language:'zh-CN',theme:'light',notifications:{activity:{pose:'idle'},items:[],hidden:0}});
  host.desktop['send']({type:'fixture-ui',action:'hover',hover:true});await new Promise(resolve=>setTimeout(resolve,120));assert.equal((await host.desktop.inspect()).toolbarButtonCount,2);
- host.desktop['send']({type:'fixture-ui',action:'hover',hover:false});await new Promise(resolve=>setTimeout(resolve,300));const compact=await host.desktop.inspect();assert.equal(compact.toolbarButtonCount,0);assert.deepEqual(compact.toolbarAppearance,{width:17,height:6});assert.equal(compact.compactGripColor,'rgba(255, 255, 255, 0.96)');await writeFile('.preview/electron-idle-compact.png',Buffer.from(compact.image,'base64'));
+ host.desktop['send']({type:'fixture-ui',action:'hover',hover:false});await new Promise(resolve=>setTimeout(resolve,300));const compact=await host.desktop.inspect();assert.equal(compact.toolbarButtonCount,0);assert.deepEqual(compact.toolbarAppearance,{width:23.5,height:6});assert.equal(compact.compactGripColor,'rgba(255, 255, 255, 0.96)');await writeFile('.preview/electron-idle-compact.png',Buffer.from(compact.image,'base64'));
  for(const x of [0,1]){
   await host.library.update({desktopPosition:{screen:'display:fixture',x,y:0}});
   await host.desktop.publish(token,{spriteKey:pet.url,language:'zh-CN',theme:'light',notifications:{activity:{pose:'review'},items:[notice],hidden:0}});await new Promise(resolve=>setTimeout(resolve,150));
@@ -70,7 +70,57 @@ try{
   assert.ok(noticeX>=edge.workArea.x+11&&noticeX+edge.noticeBounds.width<=edge.workArea.x+edge.workArea.width-11,'notification remains readable at either pet edge');
   await writeFile('.preview/electron-edge-'+(x?'right':'left')+'.png',Buffer.from(edge.image,'base64'));
  }
- await host.library.update({desktopPosition:{screen:'display:fixture',x:.25,y:.25}});
+ // Exercise real native rendering for both row widths, three pet sizes and
+ // both edges; fold around the same center and click the shifted actions.
+ for(const size of [64,120,224])for(const x of [0,1])for(const count of [0,1]){
+  await host.library.update({size,desktopPosition:{screen:'display:fixture',x,y:.15}});
+  await host.desktop.publish(token,{spriteKey:pet.url,language:'zh-CN',theme:'light',notifications:{activity:{pose:count?'review':'idle'},items:count?[notice]:[],hidden:0}});
+  host.desktop['send']({type:'fixture-ui',action:'hover-region',hover:true});await new Promise(resolve=>setTimeout(resolve,260));
+  const row=await host.desktop.inspect(),width=count?120:80,petCenter=row.bounds.x+row.petBounds.x+size/2,center=row.bounds.x+row.toolbarBounds.x+row.toolbarBounds.width/2;
+  assert.equal(row.toolbarButtonCount,count?3:2);assert.equal(row.toolbarBounds.width,width);
+  const contains=(rect,px,py)=>px>=rect.x&&px<=rect.x+rect.width&&py>=rect.y&&py<=rect.y+rect.height;
+  const rowCenter=row.toolbarBounds.x+width/2;
+  for(const px of [row.toolbarBounds.x+10,row.toolbarBounds.right-10])assert.ok(row.hitZones.some(rect=>rect.hover&&contains(rect,px,row.toolbarBounds.y+20)),'hover envelope covers shifted outer actions');
+  assert.ok(row.hitZones.some(rect=>!rect.hover&&contains(rect,rowCenter,row.toolbarBounds.y+20)),'native hit geometry follows the shifted toolbar');
+  assert.ok(row.bounds.x+row.toolbarBounds.x>=row.workArea.x+15.5);
+  assert.ok(row.bounds.x+row.toolbarBounds.right<=row.workArea.x+row.workArea.width-15.5);
+  assert.ok(Math.abs(center-petCenter-row.toolbarOffsetX)<=.5);
+  assert.ok(Math.abs(row.toolbarBounds.y-row.petBounds.bottom-4)<=.5,'controls sit four pixels below the frame');
+  host.desktop['send']({type:'fixture-ui',action:'toolbar-click',index:0});await new Promise(resolve=>setTimeout(resolve,100));
+  assert.equal((await host.desktop.inspect()).composerVisible,true,'shifted new-chat button is clickable');
+  host.desktop['send']({type:'fixture-ui',action:'outside'});await new Promise(resolve=>setTimeout(resolve,100));
+  host.desktop['send']({type:'fixture-ui',action:'hover-region',hover:true});await new Promise(resolve=>setTimeout(resolve,240));
+  const calls=commands.filter(command=>command?.type==='call-toggle').length;
+  host.desktop['send']({type:'fixture-ui',action:'toolbar-click',index:1});await new Promise(resolve=>setTimeout(resolve,100));
+  assert.equal(commands.filter(command=>command?.type==='call-toggle').length,calls+1,'shifted voice action reaches the fixture host without recording');
+  if(count){host.desktop['send']({type:'fixture-ui',action:'toolbar-click',index:2});await new Promise(resolve=>setTimeout(resolve,100));assert.equal((await host.desktop.inspect()).collapsed,true,'shifted fold action hides cards');}
+  host.desktop['send']({type:'fixture-ui',action:'hover-region',hover:false});await new Promise(resolve=>setTimeout(resolve,550));
+  const grip=await host.desktop.inspect();assert.equal(grip.toolbarExpanded,false);assert.deepEqual(grip.toolbarAppearance,{width:23.5,height:6});
+  assert.ok(Math.abs(grip.bounds.x+grip.toolbarBounds.x+grip.toolbarBounds.width/2-center)<=.5,'fold keeps the inset action-row center');
+  assert.ok(Math.abs(grip.toolbarBounds.y-grip.petBounds.bottom-4)<=.5,'fold keeps the same top anchor');
+  const gripCenter=grip.toolbarBounds.x+23.5/2;
+  for(const px of [gripCenter-width/2,gripCenter+width/2])assert.ok(grip.hitZones.some(rect=>rect.hover&&contains(rect,px,grip.toolbarBounds.y+20)),'compact hover envelope reserves the expanded row');
+  await writeFile('.preview/electron-controls-'+size+'-'+(x?'right':'left')+'-'+(count?'tasks':'idle')+'.png',Buffer.from(grip.image,'base64'));
+  if(count){host.desktop['send']({type:'fixture-ui',action:'hover-region',hover:true});await new Promise(resolve=>setTimeout(resolve,260));host.desktop['send']({type:'fixture-ui',action:'toolbar-click',index:2});await new Promise(resolve=>setTimeout(resolve,100));assert.equal((await host.desktop.inspect()).collapsed,false);}
+ }
+ for(const y of [0,1])for(const x of [0,1]){
+  await host.library.update({size:120,desktopPosition:{screen:'display:fixture',x,y}});
+  await host.desktop.publish(token,{spriteKey:pet.url,language:'zh-CN',theme:'light',notifications:{activity:{pose:'review'},items:[notice],hidden:0}});
+  host.desktop['send']({type:'fixture-ui',action:'hover-region',hover:true});await new Promise(resolve=>setTimeout(resolve,260));
+  const corner=await host.desktop.inspect();assert.equal(corner.toolbarExpanded,true);assert.equal(corner.petBounds.width,120);assert.equal(corner.above,!!y);
+  assert.ok(Math.abs(corner.bounds.x+corner.petBounds.x-(x?corner.workArea.x+corner.workArea.width-120:corner.workArea.x))<=.5);
+  assert.ok(Math.abs(corner.bounds.y+corner.petBounds.y-(y?corner.workArea.y+corner.workArea.height-130-48:corner.workArea.y))<=.5);
+  assert.ok(corner.bounds.y+corner.toolbarBounds.y>=corner.workArea.y);
+  assert.ok(corner.bounds.y+corner.toolbarBounds.bottom<=corner.workArea.y+corner.workArea.height-3.5,'full toolbar is inside the bottom edge');
+  await writeFile('.preview/electron-controls-corner-'+x+'-'+y+'.png',Buffer.from(corner.image,'base64'));
+  host.desktop['send']({type:'fixture-ui',action:'toolbar-click',index:2});await new Promise(resolve=>setTimeout(resolve,100));host.desktop['send']({type:'fixture-ui',action:'hover-region',hover:false});await new Promise(resolve=>setTimeout(resolve,550));
+  const foldedCorner=await host.desktop.inspect();assert.equal(foldedCorner.toolbarExpanded,false);
+  assert.equal(foldedCorner.bounds.y+foldedCorner.petBounds.y,corner.bounds.y+corner.petBounds.y);
+  assert.ok(Math.abs(foldedCorner.bounds.y+foldedCorner.toolbarBounds.y-corner.bounds.y-corner.toolbarBounds.y)<=.5);
+  host.desktop['send']({type:'fixture-ui',action:'hover-region',hover:true});await new Promise(resolve=>setTimeout(resolve,260));host.desktop['send']({type:'fixture-ui',action:'toolbar-click',index:2});await new Promise(resolve=>setTimeout(resolve,100));
+ }
+ console.log('native inset controls: 64/120/224px pets, both edges, 2/3 actions, 23.5×6 grip, stable collapse center and actual button clicks PASS');
+ await host.library.update({size:120,desktopPosition:{screen:'display:fixture',x:.25,y:.25}});
  const publishAudit=async(pose,request)=>{await host.desktop.publish(token,{spriteKey:pet.url,language:'zh-CN',theme:'light',notifications:{activity:{pose},items:pose==='idle'?[]:[{id:'audit',token:'audit-round',title:'Isolated state audit',pose,request}],hidden:0}});await new Promise(resolve=>setTimeout(resolve,100));};
  host.desktop['send']({type:'fixture-ui',action:'pet-hover',hover:false});host.desktop['send']({type:'fixture-ui',action:'reduced',enabled:true});
  for(const [pose,row] of Object.entries({idle:0,running:7,review:8,waiting:6,failed:5})){
