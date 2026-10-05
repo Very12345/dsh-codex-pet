@@ -7712,6 +7712,11 @@
     };
     const dismissRef = (0, import_react2.useRef)(dismissComposer);
     dismissRef.current = dismissComposer;
+    const controlHover = (active) => {
+      clearTimeout(hoverTimer.current);
+      if (active) setControls(true);
+      else hoverTimer.current = setTimeout(() => setControls(false), 300);
+    };
     (0, import_react2.useEffect)(() => {
       const listener = (value) => {
         if (value.type === "snapshot") setState(value);
@@ -7719,11 +7724,8 @@
         else if (value.type === "layout") {
           setAbove(!!value.above);
           setPanelOffsetX(value.panelOffsetX || 0);
-        } else if (value.type === "hover-region") {
-          clearTimeout(hoverTimer.current);
-          if (value.hover) setControls(true);
-          else hoverTimer.current = setTimeout(() => setControls(false), 300);
-        } else if (value.type === "window-blur") {
+        } else if (value.type === "hover-region") controlHover(!!value.hover);
+        else if (value.type === "window-blur") {
           endDragRef.current();
           dismissRef.current();
         } else if (value.type === "drag-ended" && value.id === dragToken.current) endDragRef.current();
@@ -7768,6 +7770,7 @@
           } else if (value.action === "text") setDraft(value.text || "");
           else if (value.action === "outside") pet.current?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 2 }));
           else if (value.action === "hover") setControls(!!value.hover);
+          else if (value.action === "hover-region") controlHover(!!value.hover);
           else if (value.action === "collapse") foldRef.current();
           else if (value.action === "request") {
             setRequest(latest?.notifications?.items.find((item) => item.id === value.id) || null);
@@ -7871,6 +7874,7 @@
     (0, import_react2.useEffect)(() => {
       if (request && !liveRequest) setRequest(null);
     }, [request, liveRequest]);
+    const toolbarExpanded = controls || !collapsed && items.length > 0 || !!liveRequest || call.active || !!call.error;
     (0, import_react2.useEffect)(() => {
       const end = () => endDragRef.current(), escape = (event) => {
         if (event.key === "Escape") end();
@@ -7896,8 +7900,8 @@
       return () => document.removeEventListener("pointerdown", outside, true);
     }, [compose]);
     (0, import_react2.useEffect)(() => {
-      window.__petInspect = () => ({ pose, cell, above, controls, panelOffsetX, toolbarAppearance: document.querySelector(".toolbar") ? { width: document.querySelector(".toolbar").getBoundingClientRect().width, height: document.querySelector(".toolbar").getBoundingClientRect().height } : null, replyStyle: document.querySelector(".notice-actions .round") ? { color: getComputedStyle(document.querySelector(".notice-actions .round")).color, background: getComputedStyle(document.querySelector(".notice-actions .round")).backgroundColor, iconWidth: document.querySelector(".notice-actions .round svg")?.getBoundingClientRect().width } : null, callPhase: call.phase, callVisible: !!document.querySelector(".call-panel"), callTitle: call.title, callSaid: call.said, rendererDragging: dragging.current, toolbarButtonCount: document.querySelectorAll(".toolbar button").length, collapsed, composerVisible: compose && !collapsed, composerText: draft, composerError: document.querySelector(".composer-error")?.textContent || "", noticesVisible: !collapsed && items.length > 0, petBounds: pet.current?.getBoundingClientRect().toJSON(), toolbarBounds: document.querySelector(".toolbar")?.getBoundingClientRect().toJSON(), noticeBounds: document.querySelector(".notice")?.getBoundingClientRect().toJSON(), noticePreview: document.querySelector(".notice-copy")?.textContent, noticeTitleBounds: document.querySelector(".notice-copy strong")?.getBoundingClientRect().toJSON(), noticeSubtitleBounds: document.querySelector(".notice-subtitle")?.getBoundingClientRect().toJSON(), noticeSubtitle: document.querySelector(".notice-subtitle")?.textContent, noticeProgress: document.querySelector(".notice-subtitle")?.classList.contains("is-active"), requestVisible: !!document.querySelector(".request"), replyVisible: !!document.querySelector(".follow-up") });
-    }, [pose, cell, above, controls, panelOffsetX, collapsed, compose, draft, items.length, call]);
+      window.__petInspect = () => ({ pose, cell, above, controls, toolbarExpanded, panelOffsetX, compactGripColor: document.querySelector(".compact-grip") ? getComputedStyle(document.querySelector(".compact-grip")).backgroundColor : null, toolbarAppearance: document.querySelector(".toolbar") ? { width: document.querySelector(".toolbar").getBoundingClientRect().width, height: document.querySelector(".toolbar").getBoundingClientRect().height } : null, replyStyle: document.querySelector(".notice-actions .round") ? { color: getComputedStyle(document.querySelector(".notice-actions .round")).color, background: getComputedStyle(document.querySelector(".notice-actions .round")).backgroundColor, iconWidth: document.querySelector(".notice-actions .round svg")?.getBoundingClientRect().width } : null, callPhase: call.phase, callVisible: !!document.querySelector(".call-panel"), callTitle: call.title, callSaid: call.said, rendererDragging: dragging.current, toolbarButtonCount: document.querySelectorAll(".toolbar button").length, collapsed, composerVisible: compose && !collapsed, composerText: draft, composerError: document.querySelector(".composer-error")?.textContent || "", noticesVisible: !collapsed && items.length > 0, petBounds: pet.current?.getBoundingClientRect().toJSON(), toolbarBounds: document.querySelector(".toolbar")?.getBoundingClientRect().toJSON(), noticeBounds: document.querySelector(".notice")?.getBoundingClientRect().toJSON(), noticePreview: document.querySelector(".notice-copy")?.textContent, noticeTitleBounds: document.querySelector(".notice-copy strong")?.getBoundingClientRect().toJSON(), noticeSubtitleBounds: document.querySelector(".notice-subtitle")?.getBoundingClientRect().toJSON(), noticeSubtitle: document.querySelector(".notice-subtitle")?.textContent, noticeProgress: document.querySelector(".notice-subtitle")?.classList.contains("is-active"), requestVisible: !!document.querySelector(".request"), replyVisible: !!document.querySelector(".follow-up") });
+    }, [pose, cell, above, controls, toolbarExpanded, panelOffsetX, collapsed, compose, draft, items.length, call]);
     const openComposer = () => {
       setCompose(true);
       setCollapsed(false);
@@ -7942,7 +7946,7 @@
           event.preventDefault();
           setMenu(!menu);
         } }),
-        !compose || collapsed ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "toolbar-slot", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "toolbar " + (controls ? "expanded" : "compact"), style: { width: controls ? items.length ? 120 : 80 : 17 }, "data-hit": true, children: controls ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+        !compose || collapsed ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "toolbar-slot", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "toolbar " + (toolbarExpanded ? "expanded" : "compact"), style: { width: toolbarExpanded ? items.length ? 120 : 80 : 17 }, "data-hit": true, children: toolbarExpanded ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { title: t("\u65B0\u5BF9\u8BDD", "New conversation"), onClick: openComposer, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Icon, { name: "new" }) }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { title: call.active ? t("\u7ED3\u675F\u901A\u8BDD", "End call") : t("\u8BED\u97F3\u901A\u8BDD", "Voice call"), className: call.active ? "call-active" : "", onClick: () => action({ type: "call-toggle" }), children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Icon, { name: "voice" }) }),
           items.length ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("button", { title: t("\u6298\u53E0/\u5C55\u5F00\u5BF9\u8BDD", "Collapse/expand conversations"), onClick: fold, children: [

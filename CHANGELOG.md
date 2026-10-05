@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.2] - 2026-10-05
+
+- Keep controls expanded while a task, request or call card remains visible; resume folding after cards are hidden or dismissed.
+- Match the compact grip to the toolbar surface for a whiter light-theme appearance.
+- Verify visible-card retention, manual folding and rendered color in the owned native Electron fixture.
+
 ## [0.5.1] - 2026-10-03
 
 - Announce each task result once: wait for modern terminal events, ignore late completed metadata for unchanged replies, and retain cancellation/failure updates.

@@ -55,7 +55,8 @@ test('desktop display validates leases, rasterizes selected assets, returns orig
   const forwarded=JSON.parse(action.split('data: ')[1]);assert.deepEqual(forwarded.command,command);
   runtime.acknowledge(token,forwarded.id,undefined);await flush();
   assert.deepEqual(helper.commands.at(-1),{type:'result',id:'native-action',ok:true});
-  helper.message({type:'config',value:{desktopPosition:{screen:'DISPLAY1',x:.2,y:.3}}});await new Promise(r=>setTimeout(r,15));
+  helper.message({type:'config',value:{desktopPosition:{screen:'DISPLAY1',x:.2,y:.3}}});
+  const positionDeadline=Date.now()+1000;while(!library.config.desktopPosition&&Date.now()<positionDeadline)await new Promise(r=>setTimeout(r,5));
   assert.deepEqual(library.config.desktopPosition,{screen:'DISPLAY1',x:.2,y:.3});
   stream.end();await new Promise(r=>setTimeout(r,45));assert.equal(helper.exitCode,0);assert.equal(runtime.running,false);
   helper=new Helper();const second=await runtime.begin('next');assert.notEqual(second.token,token);

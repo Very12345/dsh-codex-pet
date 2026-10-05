@@ -1,6 +1,8 @@
 # DSH 悬浮宠物
 
-这是 [MichengAI/dsh-codex-pet](https://github.com/MichengAI/dsh-codex-pet) 的独立 fork，基于上游 0.1.12。新增 Windows 原生透明浮窗，让宠物能显示在 DSH 窗口之外。当前 fork 版本为 **0.5.1**。
+这是 [MichengAI/dsh-codex-pet](https://github.com/MichengAI/dsh-codex-pet) 的独立 fork，基于上游 0.1.12。新增 Windows 原生透明浮窗，让宠物能显示在 DSH 窗口之外。当前 fork 版本为 **0.5.2**。
+
+可见任务、请求或通话卡片会保持工具条展开；收起或关闭卡片后才恢复自动折叠。空闲底条改为与工具条一致的白色。
 
 ## 功能
 
