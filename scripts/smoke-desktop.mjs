@@ -20,6 +20,8 @@ try{
   await writeFile('.preview/electron-progress-'+phase+'.png',Buffer.from(progress.image,'base64'));
  }
  await host.desktop.publish(token,{spriteKey:pet.url,language:'zh-CN',theme:'light',notifications:{activity:{pose:'running'},items:[{id:'fixture',token:'1',title:'阅读科研项目内容',pose:'running',phase:'thinking'}],hidden:0}});await new Promise(resolve=>setTimeout(resolve,80));state=await host.desktop.inspect();
+ for(const pose of ['running','review']){await host.desktop.publish(token,{spriteKey:pet.url,language:'zh-CN',theme:'light',notifications:{activity:{pose},items:[{id:'fixture',token:'1',title:'**格式标题**',pose,phase:'responding',preview:"## **结果**\n- 已保存 `file_name.ts`\n[文档](https://example.test/a)"}],hidden:0}});await new Promise(resolve=>setTimeout(resolve,100));const plain=await host.desktop.inspect();assert.equal(plain.noticeSubtitle,'结果 已保存 file_name.ts 文档');assert.ok(plain.noticePreview.includes('格式标题'));assert.ok(!plain.noticePreview.includes('**'));await writeFile('.preview/electron-markdown-'+pose+'.png',Buffer.from(plain.image,'base64'));}
+ await host.desktop.publish(token,{spriteKey:pet.url,language:'zh-CN',theme:'light',notifications:{activity:{pose:'running'},items:[{id:'fixture',token:'1',title:'阅读科研项目内容',pose:'running',phase:'thinking'}],hidden:0}});await new Promise(resolve=>setTimeout(resolve,100));
  const petScreenY=state.bounds.y+state.petBounds.y;
  for(const action of ['drag-loss','drag-cancel','drag-native-up','drag-escape','blur']){
   host.desktop['send']({type:'fixture-ui',action:'drag-start'});await new Promise(resolve=>setTimeout(resolve,80));

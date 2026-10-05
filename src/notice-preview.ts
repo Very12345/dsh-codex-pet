@@ -34,5 +34,6 @@ export function noticePreview(entries:readonly PresentationEntry[],previous?:Not
   }
   text=text.slice(0,1200);
  }
- return {text:text.replace(/\s+/g,' ').trim().slice(0,500),tool,phase,attempt,activeTools,blocks};
+ // Keep block boundaries until the shared presentation layer parses Markdown.
+ return {text:text.trim().slice(0,1200),tool,phase,attempt,activeTools,blocks};
 }

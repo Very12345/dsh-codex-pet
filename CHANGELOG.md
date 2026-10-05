@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.3] - 2026-10-05
+
+- Convert task titles and streamed/completed assistant previews from Markdown to plain text in both page and native cards.
+- Preserve code content, filenames, arithmetic, escaped punctuation and raw session content; parse block structure before bounding display text.
+- Use a bundled public Markdown lexer with its license notice, and verify actual native rendering plus 122 automated tests.
+
 ## [0.5.2] - 2026-10-05
 
 - Keep controls expanded while a task, request or call card remains visible; resume folding after cards are hidden or dismissed.

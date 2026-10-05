@@ -4,6 +4,7 @@ import { ChevronDownIcon, Cross2Icon, ResetIcon, MixerHorizontalIcon, QuestionMa
 import React, { useState } from 'react';
 import type { Answers, Notice, NoticeCommand, NotificationState } from './notifications.ts';
 import {noticeCopy} from './notice-copy.ts';
+import {noticeText} from './notice-text.ts';
 export type TrayCommand = NoticeCommand | { type: 'sort'; latest: boolean } | {type:'new-session'} | {type:'send-message';text:string;files?:string[]} | {type:'voice-toggle'} | {type:'voice-cancel'} | {type:'call-toggle'} | {type:'call-mute'} | {type:'call-end'};
 export interface TrayProps { language?: string; state: NotificationState; command(value: TrayCommand): Promise<void> }
 export function RequestForm({ item, command, language }: { language?: string; item: Notice; command: TrayProps['command'] }) {
@@ -45,7 +46,7 @@ export function NotificationTray({ state, command, language }: TrayProps) {
       {visible.map(item => <article role="listitem" key={item.id} data-status={item.pose}>
         <button className="dcp-notice-dismiss" aria-label={t('关闭通知：{title}', { title: item.title })} title={t('关闭本轮提醒，任务继续运行')} onClick={() => void run({ type: 'dismiss', id: item.id, token: item.token })}><Cross2Icon /></button>
         <div className="dcp-notice-card">
-          <button className="dcp-bubble-link" title={item.title} onClick={() => void run({ type: 'open', id: item.id, token: item.token })}><strong>{item.pose==='review'?'✓ ':''}{item.title}</strong><span className={item.pose==='running'?'dcp-progress-text':''}>{noticeCopy(item,(zh,en)=>language?.startsWith('en')?en:zh).text}</span></button>
+          <button className="dcp-bubble-link" title={noticeText(item.title,160)} onClick={() => void run({ type: 'open', id: item.id, token: item.token })}><strong>{item.pose==='review'?'✓ ':''}{noticeText(item.title,160)}</strong><span className={item.pose==='running'?'dcp-progress-text':''}>{noticeCopy(item,(zh,en)=>language?.startsWith('en')?en:zh).text}</span></button>
           <div className="dcp-notice-actions">
             {item.request ? <button className="dcp-notice-action" aria-label={t('处理请求：{title}', { title: item.title })} title={t('查看并处理')} aria-expanded={detail === item.request.key} onClick={() => { setExpanded(true); setDetail(detail === item.request!.key ? null : item.request!.key); }}><QuestionMarkCircledIcon /></button> : <button className="dcp-notice-action" aria-label={t('回复会话：{title}', { title: item.title })} title={t('回复会话：{title}',{title:item.title})} onClick={() => setReply({id:item.id,token:item.token})}><ResetIcon /></button>}
             {item.pose === 'running' && <button className="dcp-notice-action" aria-label={t('停止当前轮次：{title}', { title: item.title })} title={t('停止当前轮次')} onClick={() => void run({ type: 'stop', id: item.id, token: item.token })}><StopIcon /></button>}

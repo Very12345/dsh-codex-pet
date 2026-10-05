@@ -2,6 +2,7 @@ import React,{useEffect,useLayoutEffect,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {MotionClock,gazeCell} from '../../src/motion.ts';
 import {noticeCopy} from '../../src/notice-copy.ts';
+import {noticeText} from '../../src/notice-text.ts';
 import {editorCaret} from './caret.ts';
 import type {CallState} from '../../src/voice-call.ts';
 import {ANIMATIONS,type Pose} from '../../src/model.ts';
@@ -24,7 +25,7 @@ function NoticeCard({item,command,showRequest,t,drafts}:{item:any;command:(value
  const openTask=async()=>{setError('');try{await command({type:'open',id:item.id,token:item.token});const result=await bridge.focusHost();if(!result.ok)setError(t('会话已切换，但未能将 DSH 窗口带到前台。','Task opened, but Windows did not bring DSH to the foreground.'));}catch(cause){setError(cause instanceof Error?cause.message:String(cause));}};
  return <article className={'notice '+(expanded?'is-expanded':'')} data-hit data-notice={item.id} data-phase={item.phase||item.pose}>
   <button className="dismiss" title={t('关闭提醒','Dismiss')} onClick={()=>void command({type:'dismiss',id:item.id,token:item.token}).catch(cause=>setError(String(cause)))}><Icon name="close"/></button>
-  <div className="notice-header"><button className="notice-copy" onClick={()=>void openTask()}><strong>{item.pose==='review'?<span className="complete-mark">✓</span>:null}{item.title}</strong><span className={'notice-subtitle '+(copy.busy?'is-active':'')}>{copy.text}</span></button>
+  <div className="notice-header"><button className="notice-copy" onClick={()=>void openTask()}><strong>{item.pose==='review'?<span className="complete-mark">✓</span>:null}{noticeText(item.title,160)}</strong><span className={'notice-subtitle '+(copy.busy?'is-active':'')}>{copy.text}</span></button>
    <div className="notice-actions"><button className="round" aria-pressed={expanded} title={item.request?t('处理请求','Respond to request'):t('回复会话','Reply to conversation')} onClick={()=>item.request?showRequest():expanded&&draft.trim()?void send():openReply()}><Icon name={item.request?'question':'reply'}/></button>{item.pose==='running'?<button className="round" title={t('停止','Stop')} onClick={()=>void command({type:'stop',id:item.id,token:item.token}).catch(cause=>setError(String(cause)))}><Icon name="stop"/></button>:null}</div>
   </div>
   {expanded?<form className="follow-up" onSubmit={event=>{event.preventDefault();void send();}}><textarea ref={input} rows={1} maxLength={10000} value={draft} disabled={busy} aria-label={t('继续跟进','Follow up')} placeholder={t('继续跟进','Follow up')} onChange={event=>{setDraft(event.target.value);drafts.set(key,event.target.value);}} onKeyDown={event=>{if(event.key==='Escape')setExpanded(false);else if(event.key==='Enter'&&!event.shiftKey&&!event.nativeEvent.isComposing){event.preventDefault();void send();}}}/></form>:null}
