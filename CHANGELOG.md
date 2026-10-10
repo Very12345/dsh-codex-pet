@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.5] - 2026-10-10
+
+- Start pet voice in a fresh spoken conversation instead of implicitly attaching the main window selection.
+- Create a new task on the first work delegation and keep it pinned for that call; hangup/restart clears the affinity.
+- Preserve explicit target support and verify native simulated audio/model flows without reading old task replies.
+
 ## [0.5.4] - 2026-10-06
 
 - Correct the compact grip to 23.5×6px: 17px was one component, not the merged capsule width.

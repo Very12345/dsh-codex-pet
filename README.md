@@ -2,7 +2,7 @@
 
 [简体中文](README.zh-CN.md)
 
-An independent fork of [MichengAI/dsh-codex-pet](https://github.com/MichengAI/dsh-codex-pet), based on upstream 0.1.12. Fork version **0.5.4** adds a native Windows floating companion outside the DSH window.
+An independent fork of [MichengAI/dsh-codex-pet](https://github.com/MichengAI/dsh-codex-pet), based on upstream 0.1.12. Fork version **0.5.5** adds a native Windows floating companion outside the DSH window.
 
 ## Features
 
@@ -11,7 +11,7 @@ An independent fork of [MichengAI/dsh-codex-pet](https://github.com/MichengAI/ds
 - Notifications appear above a bottom-positioned pet and below a top-positioned pet, preserving the mascot anchor as UI expands. Cards place live thinking, visible reply text or friendly tool activity below the title. Completed tool calls return to thinking; a subtle progress shimmer respects reduced motion. Completion marks and hover actions remain, with inline follow-ups sent to the original session in queue mode.
 - New companion tasks receive separate scratch directories under `.dsh/codex-pet/workspaces/task-*`, with files retained for follow-up. Existing task replies and pinned calls keep their workspace. Clicking a task card navigates through the workspace UI, then brings the owning Windows DSH window forward and restores it when minimized; a refused activation is reported.
 - Sending a draft or pressing Ctrl+Enter creates and prompts a native DSH session. The voice button starts a continuous local call with automatic utterance submission and spoken reply summaries; right-click the pet for the original manual dictation flow.
-- A separate spoken conversation layer uses the selected DSH text model. Chat, follow-ups and clarifications are answered directly; work requests are delegated to the original task. Results become one to three conversational sentences, with directory listings, files and logs kept in the written task rather than reading a truncated preview. Recognition remains responsive while the model thinks.
+- A separate spoken conversation layer uses the selected DSH text model. Chat, follow-ups and clarifications are answered directly; the first work request creates a new task, and further work stays on that task. Results become one to three conversational sentences, with directory listings, files and logs kept in the written task rather than reading a truncated preview. Recognition remains responsive while the model thinks.
 - Recognition and synthesis remain local, with no new speech API key. Dialogue adds normal text-model calls under the configured model/account usage terms. The spoken layer has no tools or approval permissions; short conversation history is cleared on hangup.
 - Spoken context uses bounded standard conversation messages without repeatedly embedding history or unchanged task output in a new question. Modern task results wait for their terminal event and are summarized once; late completion metadata stays silent while cancellation/failure changes remain visible.
 - Prepared local recognizers in standby/waking accept recording, matching DSH voice input; the host wakes the worker during transcription without requiring re-installation.
@@ -33,7 +33,7 @@ The development and validation baseline is **DSH 0.2.0-rc.2**. The upstream RC c
 
 Enable official DSH voice input and prepare **local SenseVoice**. Replies use installed Windows system voices, without a speech API key or additional speech API fees; the DSH text model keeps its existing configuration and billing. Cloud recognizers are rejected for this call path, including if selection changes while a call is active.
 
-- Select a conversation in DSH, click the pet voice button and grant microphone access. A pause of about one second submits an utterance automatically. Without a selected conversation, the first ordinary utterance creates one.
+- Click the pet voice button to start a fresh spoken conversation and grant microphone access. It does not attach the task selected in DSH. Ordinary chat uses the host default model without creating a task; the first delegated work request creates a new task in a separate workspace. Further work stays pinned to that task until hangup, even when the main-window selection changes.
 - Calls stay pinned to the original session. Running work receives native `steer` input, idle work receives `queue`, and existing permissions remain intact. Switching the main view does not retarget the call.
 - Speaking interrupts playback while work continues. The microphone button pauses capture; the red phone hangs up. Hangup, owner disconnect and target removal release microphone and session observation without cancelling the background task.
 - Local controls include “status”, “stop the task”, “repeat that”, “stop speaking” and “hang up”, plus their documented Chinese equivalents. Approvals still use the native request UI.

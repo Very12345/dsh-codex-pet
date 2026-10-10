@@ -1,6 +1,6 @@
-import {selectedSessionId,type Sessions} from './activity.ts';import {noticePreview} from './notice-preview.ts';
+import type {Sessions} from './activity.ts';import {noticePreview} from './notice-preview.ts';
 export interface VoiceObservation {sessionId:string|null;title:string;running:boolean;waiting:boolean;missing?:boolean;error:string|null;outcome?:string;settled?:boolean;resultKey?:string;reply:string;replyKey:string;stamp:string}
-export interface VoiceSessions {begin():Promise<VoiceObservation>;send(text:string,signal:AbortSignal,context?:string):Promise<VoiceObservation>;snapshot():VoiceObservation;subscribe(listener:()=>void):()=>void;cancelTask():Promise<void>;end():void;dispose():void}
+export interface VoiceSessions {begin(target?:string):Promise<VoiceObservation>;send(text:string,signal:AbortSignal,context?:string):Promise<VoiceObservation>;snapshot():VoiceObservation;subscribe(listener:()=>void):()=>void;cancelTask():Promise<void>;end():void;dispose():void}
 export function createVoiceSessions(sessions:Sessions):VoiceSessions {
  let id:string|null=null,ref:ReturnType<NonNullable<Sessions['retain']>>|undefined,binding:ReturnType<Sessions['binding']>,offSession:(()=>void)|undefined,offEvents:(()=>void)|undefined,epoch=0,disposed=false;
  const listeners=new Set<()=>void>(),notify=()=>{for(const listener of listeners)listener();};
@@ -23,10 +23,13 @@ export function createVoiceSessions(sessions:Sessions):VoiceSessions {
  const end=()=>{epoch++;offSession?.();offEvents?.();offSession=offEvents=undefined;ref?.release();ref=undefined;binding=undefined;id=null;};
  const offList=sessions.list.subscribe(notify),offStatus=sessions.status?.subscribe(notify);
  return {
-  async begin(){if(disposed)throw new Error('语音接口已卸载');end();const target=selectedSessionId(sessions.list.getSnapshot());if(target)try{await attach(target);}catch(error){end();throw error;}return snapshot();},
+  // The pet toolbar starts a fresh spoken conversation. Only an explicit
+  // target may attach an existing task; the main window's selection is not one.
+  async begin(target){if(disposed)throw new Error('语音接口已卸载');end();if(target)try{await attach(target);}catch(error){end();throw error;}return snapshot();},
   async send(text,signal,context){
    signal.throwIfAborted();if(!text.trim()||text.length>10000)throw new Error('语音消息过长或为空');
-   if(!id){if(!sessions.create)throw new Error('宿主未提供创建对话能力');const generation=epoch,target=await sessions.create({});if(generation!==epoch)throw new Error('通话已结束，未发送消息');await attach(target);await sessions.open?.(target);}
+   if(!id){if(!sessions.create)throw new Error('宿主未提供创建对话能力');const generation=epoch,target=await sessions.create({});if(generation!==epoch)throw new Error('通话已结束，未发送消息');signal.throwIfAborted();await attach(target);signal.throwIfAborted();await sessions.open?.(target);}
+   signal.throwIfAborted();
    if(!sessions.list.getSnapshot().byId[id!])throw new Error('语音目标会话已移除');
    const state=snapshot();if(state.waiting)throw new Error('任务正在等待审批或回答，请先在对话中处理');
    if(state.missing)throw new Error('语音目标会话已移除');
